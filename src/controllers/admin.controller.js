@@ -1,0 +1,84 @@
+const adminService = require('../services/admin.service');
+const ApiResponse = require('../utils/ApiResponse');
+const asyncHandler = require('../utils/asyncHandler');
+
+const getPendingEmployers = asyncHandler(async (req, res) => {
+  const result = await adminService.getPendingEmployers(req.query);
+  ApiResponse.ok('Pending employer verification list', result.docs, result.meta).send(res);
+});
+
+const verifyEmployer = asyncHandler(async (req, res) => {
+  const company = await adminService.verifyEmployer(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('Employer verification decision recorded', company).send(res);
+});
+
+const suspendUser = asyncHandler(async (req, res) => {
+  const user = await adminService.suspendUser(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('User status updated successfully', user).send(res);
+});
+
+const getFlags = asyncHandler(async (req, res) => {
+  const result = await adminService.getFlags(req.query);
+  ApiResponse.ok('Flagged content list retrieved', result.docs, result.meta).send(res);
+});
+
+const resolveFlag = asyncHandler(async (req, res) => {
+  const flag = await adminService.resolveFlag(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('Flag resolved successfully', flag).send(res);
+});
+
+const getTaxonomy = asyncHandler(async (req, res) => {
+  const taxonomy = await adminService.getTaxonomy(req.query);
+  ApiResponse.ok('Taxonomy entries retrieved', taxonomy).send(res);
+});
+
+const createTaxonomyEntry = asyncHandler(async (req, res) => {
+  const entry = await adminService.createTaxonomyEntry(req.user._id, req.body, req);
+  ApiResponse.created('Taxonomy entry created', entry).send(res);
+});
+
+const updateTaxonomyEntry = asyncHandler(async (req, res) => {
+  const entry = await adminService.updateTaxonomyEntry(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('Taxonomy entry updated', entry).send(res);
+});
+
+const getSystemConfigs = asyncHandler(async (req, res) => {
+  const configs = await adminService.getSystemConfigs();
+  ApiResponse.ok('System configurations retrieved', configs).send(res);
+});
+
+const updateSystemConfig = asyncHandler(async (req, res) => {
+  const config = await adminService.updateSystemConfig(req.user._id, req.body, req);
+  ApiResponse.ok('System configuration updated', config).send(res);
+});
+
+const getExecutiveReport = asyncHandler(async (req, res) => {
+  const report = await adminService.getExecutiveReport();
+  ApiResponse.ok('Executive report metrics generated', report).send(res);
+});
+
+const processRefund = asyncHandler(async (req, res) => {
+  const transaction = await adminService.processRefund(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('Refund processed successfully', transaction).send(res);
+});
+
+const getAuditLogs = asyncHandler(async (req, res) => {
+  const result = await adminService.getAuditLogs(req.query);
+  ApiResponse.ok('Audit logs retrieved', result.docs, result.meta).send(res);
+});
+
+module.exports = {
+  getPendingEmployers,
+  verifyEmployer,
+  suspendUser,
+  getFlags,
+  resolveFlag,
+  getTaxonomy,
+  createTaxonomyEntry,
+  updateTaxonomyEntry,
+  getSystemConfigs,
+  updateSystemConfig,
+  getExecutiveReport,
+  processRefund,
+  getAuditLogs,
+};
