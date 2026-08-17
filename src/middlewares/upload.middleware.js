@@ -1,9 +1,18 @@
+const path = require('path');
 const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('cloudinary').v2;
 const config = require('../config');
 const ApiError = require('../utils/ApiError');
 const { ALLOWED_RESUME_MIMES, MAX_RESUME_SIZE_BYTES } = require('../utils/constants');
+
+// Helper to sanitize filename and extract extension
+const getCleanFileInfo = (originalname, defaultExt = 'pdf') => {
+  const extWithDot = path.extname(originalname || '');
+  const ext = extWithDot ? extWithDot.replace(/^\./, '').toLowerCase() : defaultExt;
+  const baseName = path.basename(originalname || 'file', extWithDot).replace(/[^a-zA-Z0-9-_]/g, '_');
+  return { baseName, ext };
+};
 
 // ── Configure Cloudinary ──────────────────────────
 cloudinary.config({
@@ -18,12 +27,11 @@ const resumeStorage = new CloudinaryStorage({
   params: {
     folder: 'hire-engine/resumes',
     resource_type: 'raw', // PDFs and documents are 'raw' in Cloudinary
-    allowed_formats: ['pdf', 'doc', 'docx', 'txt'],
-    // Use a unique public ID per upload
+    // Preserve extension in public_id so Cloudinary URL contains file extension
     public_id: (_req, file) => {
       const timestamp = Date.now();
-      const cleanName = file.originalname.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_');
-      return `resume_${cleanName}_${timestamp}`;
+      const { baseName, ext } = getCleanFileInfo(file.originalname, 'pdf');
+      return `resume_${baseName}_${timestamp}.${ext}`;
     },
   },
 });
@@ -108,11 +116,11 @@ const uploadDocuments = multer({
     params: {
       folder: 'hire-engine/documents',
       resource_type: 'raw',
-      allowed_formats: ['pdf', 'jpg', 'jpeg', 'png'],
+      // Preserve extension in public_id so Cloudinary URL contains file extension
       public_id: (_req, file) => {
         const timestamp = Date.now();
-        const cleanName = file.originalname.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_');
-        return `doc_${cleanName}_${timestamp}`;
+        const { baseName, ext } = getCleanFileInfo(file.originalname, 'pdf');
+        return `doc_${baseName}_${timestamp}.${ext}`;
       },
     },
   }),

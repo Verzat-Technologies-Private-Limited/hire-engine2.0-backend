@@ -32,7 +32,7 @@ async function uploadResume(userId, file, title) {
     user: userId,
     title: title || file.originalname,
     fileUrl: file.path,
-    publicId: file.filename || file.public_id || `resume_${Date.now()}`,
+    publicId: file.filename || file.public_id || `resume_${Date.now()}.${fileType}`,
     fileType,
     fileSize: file.size || 0,
     originalFileName: file.originalname,
