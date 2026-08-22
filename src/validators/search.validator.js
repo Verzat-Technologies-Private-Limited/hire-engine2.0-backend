@@ -18,6 +18,7 @@ const jobSearchSchema = {
     datePosted: Joi.string().valid('today', '3days', '7days', '14days', '30days', '').allow(''),
     skills: Joi.string().allow(''),                  // comma-separated
     sort: Joi.string().valid('relevance', 'date', 'salary_asc', 'salary_desc').default('relevance'),
+    mode: Joi.string().valid('keyword', 'semantic', 'hybrid').default('hybrid'),
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(20),
   }),
@@ -32,6 +33,7 @@ const resumeSearchSchema = {
     experienceMax: Joi.number().min(0),
     education: Joi.string().valid('high_school', 'associate', 'bachelor', 'master', 'doctorate', 'any', ''),
     sort: Joi.string().valid('relevance', 'experience', 'date').default('relevance'),
+    mode: Joi.string().valid('keyword', 'semantic', 'hybrid').default('hybrid'),
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(20),
   }),

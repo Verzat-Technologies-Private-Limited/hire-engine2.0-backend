@@ -109,6 +109,13 @@ const config = {
     entityId: process.env.DOVESOFT_ENTITY_ID || '',
     templateId: process.env.DOVESOFT_TEMPLATE_ID || '',
   },
+
+  // ── Google Gemini AI ────────────────────────────
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
+    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001',
+  },
 };
 
 /**

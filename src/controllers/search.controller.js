@@ -1,4 +1,9 @@
 const searchService = require('../services/search.service');
+const {
+  findSimilarJobs,
+  findSimilarResumes,
+  rankResumesByJob,
+} = require('../services/embedding.service');
 const ApiResponse = require('../utils/ApiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -27,10 +32,32 @@ const deleteSavedSearch = asyncHandler(async (req, res) => {
   ApiResponse.ok('Saved search deleted successfully').send(res);
 });
 
+// ── Semantic Search Endpoints ─────────────────────────
+
+const getSimilarJobs = asyncHandler(async (req, res) => {
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+  const docs = await findSimilarJobs(req.params.jobId, limit);
+  ApiResponse.ok('Similar jobs retrieved', docs).send(res);
+});
+
+const getSimilarResumes = asyncHandler(async (req, res) => {
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+  const docs = await findSimilarResumes(req.params.resumeId, limit);
+  ApiResponse.ok('Similar resumes retrieved', docs).send(res);
+});
+
+const getRankedResumesByJob = asyncHandler(async (req, res) => {
+  const result = await rankResumesByJob(req.params.jobId, req.query);
+  ApiResponse.ok('Resumes ranked by job fit', result.docs, result.meta).send(res);
+});
+
 module.exports = {
   searchJobs,
   searchResumes,
   saveSearch,
   getSavedSearches,
   deleteSavedSearch,
+  getSimilarJobs,
+  getSimilarResumes,
+  getRankedResumesByJob,
 };

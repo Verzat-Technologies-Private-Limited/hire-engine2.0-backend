@@ -1,23 +1,18 @@
 const Subscription = require('../models/Subscription');
 const Transaction = require('../models/Transaction');
 const Company = require('../models/Company');
+const Plan = require('../models/Plan');
 const ApiError = require('../utils/ApiError');
 const { getPaymentAdapter } = require('../adapters/payment');
 const { getCountryPlugin } = require('../plugins/countries');
 
-const PLAN_PRICING = {
-  'pay-per-job': { name: 'Pay Per Job', price: 9900, jobQuota: 1, resumeQuota: 0, hasResumeDB: false },
-  'monthly': { name: 'Monthly Subscription', price: 29900, jobQuota: 10, resumeQuota: 100, hasResumeDB: true },
-  'annual': { name: 'Annual Enterprise', price: 249900, jobQuota: 0, resumeQuota: 0, hasResumeDB: true },
-  'enterprise': { name: 'Custom Enterprise', price: 499900, jobQuota: 0, resumeQuota: 0, hasResumeDB: true },
-};
-
 /**
  * Get available plans with tax calculation based on country.
+ * Reads plans from the Plan collection (only active plans).
  * @param {string} [countryCode='US']
- * @returns {object}
+ * @returns {Promise<object>}
  */
-function getAvailablePlans(countryCode = 'US') {
+async function getAvailablePlans(countryCode = 'US') {
   let plugin;
   try {
     plugin = getCountryPlugin(countryCode);
@@ -25,12 +20,20 @@ function getAvailablePlans(countryCode = 'US') {
     plugin = getCountryPlugin('US');
   }
 
+  const dbPlans = await Plan.find({ isActive: true }).sort({ price: 1 });
+
   const plans = {};
-  for (const [planId, planInfo] of Object.entries(PLAN_PRICING)) {
-    const taxInfo = plugin.calculateTax(planInfo.price);
-    plans[planId] = {
-      id: planId,
-      ...planInfo,
+  for (const dbPlan of dbPlans) {
+    const taxInfo = plugin.calculateTax(dbPlan.price);
+    plans[dbPlan.planId] = {
+      id: dbPlan.planId,
+      name: dbPlan.name,
+      description: dbPlan.description,
+      price: dbPlan.price,
+      jobQuota: dbPlan.jobQuota,
+      resumeQuota: dbPlan.resumeQuota,
+      hasResumeDB: dbPlan.hasResumeDB,
+      durationMonths: dbPlan.durationMonths,
       currency: plugin.currency,
       tax: taxInfo.breakdown,
       totalPrice: taxInfo.totalAmount,
@@ -59,9 +62,10 @@ async function subscribeCompany(userId, companyId, planId) {
     throw ApiError.forbidden('You do not have permission to manage billing for this company');
   }
 
-  const planInfo = PLAN_PRICING[planId];
+  // Look up plan from database
+  const planInfo = await Plan.findOne({ planId, isActive: true });
   if (!planInfo) {
-    throw ApiError.badRequest('Invalid subscription plan');
+    throw ApiError.badRequest('Invalid or inactive subscription plan');
   }
 
   // Get country plugin to determine tax & payment provider
@@ -79,8 +83,8 @@ async function subscribeCompany(userId, companyId, planId) {
     description: `Subscription: ${planInfo.name}`,
   });
 
-  // Calculate 1 month / 1 year period end
-  const durationMonths = planId === 'annual' ? 12 : 1;
+  // Calculate period end based on plan duration
+  const durationMonths = planInfo.durationMonths || 1;
   const currentPeriodEnd = new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000);
 
   // Upsert Subscription
@@ -186,3 +190,4 @@ module.exports = {
   getCompanyTransactions,
   handlePaymentWebhook,
 };
+

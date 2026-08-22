@@ -7,6 +7,7 @@ const Transaction = require('../models/Transaction');
 const AuditLog = require('../models/AuditLog');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
+const Plan = require('../models/Plan');
 const ApiError = require('../utils/ApiError');
 const { getPaymentAdapter } = require('../adapters/payment');
 const { paginateQuery } = require('../utils/pagination');
@@ -260,6 +261,115 @@ async function getAuditLogs(queryParams) {
   });
 }
 
+// ── Plan Management ──────────────────────────────────
+
+/**
+ * List all subscription plans (optionally filter by active status).
+ * @param {object} queryParams
+ * @returns {Promise<Array>}
+ */
+async function getPlans(queryParams) {
+  const filter = {};
+  if (queryParams.active !== undefined) {
+    filter.isActive = queryParams.active === 'true';
+  }
+  return Plan.find(filter).sort({ price: 1 });
+}
+
+/**
+ * Create a new subscription plan.
+ * @param {string} adminId
+ * @param {object} planData
+ * @param {object} req
+ * @returns {Promise<object>}
+ */
+async function createPlan(adminId, planData, req) {
+  const existing = await Plan.findOne({ planId: planData.planId });
+  if (existing) {
+    throw ApiError.conflict(`A plan with ID "${planData.planId}" already exists`);
+  }
+
+  const plan = await Plan.create(planData);
+
+  await AuditLog.log({
+    performedBy: adminId,
+    action: 'plan.created',
+    targetModel: 'Plan',
+    targetId: plan._id,
+    details: planData,
+    req,
+  });
+
+  return plan.toJSON();
+}
+
+/**
+ * Update an existing subscription plan.
+ * @param {string} planId - MongoDB ObjectId
+ * @param {string} adminId
+ * @param {object} updateData
+ * @param {object} req
+ * @returns {Promise<object>}
+ */
+async function updatePlan(planId, adminId, updateData, req) {
+  const plan = await Plan.findByIdAndUpdate(planId, updateData, { new: true, runValidators: true });
+  if (!plan) {
+    throw ApiError.notFound('Plan not found');
+  }
+
+  await AuditLog.log({
+    performedBy: adminId,
+    action: 'plan.updated',
+    targetModel: 'Plan',
+    targetId: plan._id,
+    details: updateData,
+    req,
+  });
+
+  return plan.toJSON();
+}
+
+/**
+ * Delete a subscription plan (hard delete).
+ * Prevents deletion if any active subscriptions reference this plan.
+ * @param {string} planId - MongoDB ObjectId
+ * @param {string} adminId
+ * @param {object} req
+ * @returns {Promise<object>}
+ */
+async function deletePlan(planId, adminId, req) {
+  const plan = await Plan.findById(planId);
+  if (!plan) {
+    throw ApiError.notFound('Plan not found');
+  }
+
+  // Check if any active subscriptions use this plan
+  const Subscription = require('../models/Subscription');
+  const activeCount = await Subscription.countDocuments({
+    plan: plan.planId,
+    status: { $in: ['active', 'past_due'] },
+  });
+
+  if (activeCount > 0) {
+    throw ApiError.conflict(
+      `Cannot delete plan "${plan.name}". ${activeCount} active subscription(s) are using it. Deactivate the plan instead.`
+    );
+  }
+
+  await Plan.findByIdAndDelete(planId);
+
+  await AuditLog.log({
+    performedBy: adminId,
+    action: 'plan.deleted',
+    targetModel: 'Plan',
+    targetId: plan._id,
+    details: { planId: plan.planId, name: plan.name },
+    req,
+  });
+
+  return { message: `Plan "${plan.name}" deleted successfully` };
+}
+
 module.exports = {
   getPendingEmployers,
   verifyEmployer,
@@ -274,4 +384,8 @@ module.exports = {
   getExecutiveReport,
   processRefund,
   getAuditLogs,
+  getPlans,
+  createPlan,
+  updatePlan,
+  deletePlan,
 };

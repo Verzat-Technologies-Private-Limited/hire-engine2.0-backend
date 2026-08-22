@@ -3,7 +3,7 @@ const ApiResponse = require('../utils/ApiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
 const getPlans = asyncHandler(async (req, res) => {
-  const plans = subscriptionService.getAvailablePlans(req.query.countryCode);
+  const plans = await subscriptionService.getAvailablePlans(req.query.countryCode);
   ApiResponse.ok('Available subscription plans retrieved', plans).send(res);
 });
 

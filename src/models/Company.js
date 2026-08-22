@@ -179,11 +179,12 @@ companySchema.pre('save', function () {
  * @returns {boolean}
  */
 companySchema.methods.isTeamMember = function (userId) {
-  if (this.owner.equals(userId)) {
+  const uid = userId.toString();
+  if (this.owner.toString() === uid) {
     return true;
   }
 
-  return this.teamMembers.some((member) => member.user.equals(userId));
+  return this.teamMembers.some((member) => member.user.toString() === uid);
 };
 
 /**

@@ -10,6 +10,8 @@ const {
   updateConfigSchema,
   taxonomySchema,
   processRefundSchema,
+  createPlanSchema,
+  updatePlanSchema,
 } = require('../validators/admin.validator');
 
 const router = express.Router();
@@ -43,5 +45,11 @@ router.post('/transactions/:id/refund', validate(processRefundSchema), adminCont
 
 // Audit Logs
 router.get('/audit-logs', adminController.getAuditLogs);
+
+// Subscription Plan Management
+router.get('/plans', adminController.getPlans);
+router.post('/plans', validate(createPlanSchema), adminController.createPlan);
+router.patch('/plans/:id', validate(updatePlanSchema), adminController.updatePlan);
+router.delete('/plans/:id', adminController.deletePlan);
 
 module.exports = router;

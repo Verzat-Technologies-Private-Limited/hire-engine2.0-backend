@@ -49,22 +49,29 @@ const resumeSchema = new mongoose.Schema(
       index: true,
     },
 
-    // ★ Parsed data from resume parser (stub)
+    // ★ Parsed data from AI resume parser
     parsedData: {
       personalInfo: {
         name: { type: String, default: '' },
         email: { type: String, default: '' },
         phone: { type: String, default: '' },
         location: { type: String, default: '' },
+        linkedin: { type: String, default: '' },
+        github: { type: String, default: '' },
+        portfolio: { type: String, default: '' },
       },
+      headline: { type: String, default: '' },
+      summary: { type: String, default: '' },
       experience: [
         {
           company: { type: String },
           title: { type: String },
+          location: { type: String, default: '' },
           startDate: { type: String },
           endDate: { type: String },
           description: { type: String },
           current: { type: Boolean, default: false },
+          highlights: [{ type: String }],
         },
       ],
       education: [
@@ -73,17 +80,33 @@ const resumeSchema = new mongoose.Schema(
           degree: { type: String },
           field: { type: String },
           graduationYear: { type: Number },
+          gpa: { type: String, default: '' },
         },
       ],
       skills: [{ type: String }],
+      certifications: [
+        {
+          name: { type: String },
+          issuer: { type: String },
+          year: { type: Number },
+        },
+      ],
+      languages: [{ type: String }],
       totalYearsOfExperience: { type: Number, default: 0 },
       rawText: { type: String, default: '' },
       _parserMeta: {
-        engine: { type: String, default: 'stub' },
-        version: { type: String, default: '1.0.0' },
+        engine: { type: String, default: 'gemini' },
+        version: { type: String, default: '2.0.0' },
         parsedAt: { type: Date, default: null },
         confidence: { type: Number, default: 0 },
       },
+    },
+
+    // ★ Semantic search embedding vector (Gemini AI)
+    embedding: {
+      vector: { type: [Number], default: [] },
+      model: { type: String, default: '' },
+      generatedAt: { type: Date, default: null },
     },
   },
   {

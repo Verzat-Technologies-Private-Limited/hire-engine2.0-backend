@@ -67,6 +67,26 @@ const getAuditLogs = asyncHandler(async (req, res) => {
   ApiResponse.ok('Audit logs retrieved', result.docs, result.meta).send(res);
 });
 
+const getPlans = asyncHandler(async (req, res) => {
+  const plans = await adminService.getPlans(req.query);
+  ApiResponse.ok('Subscription plans retrieved', plans).send(res);
+});
+
+const createPlan = asyncHandler(async (req, res) => {
+  const plan = await adminService.createPlan(req.user._id, req.body, req);
+  ApiResponse.created('Subscription plan created', plan).send(res);
+});
+
+const updatePlan = asyncHandler(async (req, res) => {
+  const plan = await adminService.updatePlan(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('Subscription plan updated', plan).send(res);
+});
+
+const deletePlan = asyncHandler(async (req, res) => {
+  const result = await adminService.deletePlan(req.params.id, req.user._id, req);
+  ApiResponse.ok(result.message).send(res);
+});
+
 module.exports = {
   getPendingEmployers,
   verifyEmployer,
@@ -81,4 +101,8 @@ module.exports = {
   getExecutiveReport,
   processRefund,
   getAuditLogs,
+  getPlans,
+  createPlan,
+  updatePlan,
+  deletePlan,
 };

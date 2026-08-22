@@ -3,7 +3,6 @@ const ApiResponse = require('../utils/ApiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
 const createJob = asyncHandler(async (req, res) => {
-  console.log('req.body from createJob: ', req.body);
   const job = await jobService.createJob(req.user._id, req.body);
   ApiResponse.created('Job posting created successfully', job).send(res);
 });

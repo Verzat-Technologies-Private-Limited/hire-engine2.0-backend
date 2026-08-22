@@ -241,10 +241,43 @@ async function sendBulkEmailToApplicants(employerId, bulkData) {
   return result;
 }
 
+/**
+ * Generate AI fit analysis for a specific application.
+ * @param {string} applicationId
+ * @param {string} employerId
+ * @returns {Promise<object>}
+ */
+async function getApplicationFitAnalysis(applicationId, employerId) {
+  const application = await Application.findById(applicationId)
+    .populate('job')
+    .populate('resume')
+    .populate('applicant', 'firstName lastName email');
+
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(employerId)) {
+    throw ApiError.forbidden('You do not have permission to review this application');
+  }
+
+  const { calculateJobMatchScore } = require('../adapters/ai/gemini.adapter');
+  const matchResult = await calculateJobMatchScore(application.resume?.parsedData, application.job);
+
+  return {
+    applicationId: application._id,
+    candidateName: `${application.applicant.firstName} ${application.applicant.lastName}`,
+    jobTitle: application.job.title,
+    ...matchResult,
+  };
+}
+
 module.exports = {
   applyToJob,
   getSeekerApplications,
   getJobApplications,
+  getApplicationFitAnalysis,
   updateApplicationStatus,
   addCandidateNote,
   rateCandidate,

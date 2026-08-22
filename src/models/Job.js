@@ -167,6 +167,13 @@ const jobSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ★ Semantic search embedding vector (Gemini AI)
+    embedding: {
+      vector: { type: [Number], default: [] },
+      model: { type: String, default: '' },
+      generatedAt: { type: Date, default: null },
+    },
+
     expiresAt: {
       type: Date,
       default: function () {

@@ -17,6 +17,25 @@ const getResume = asyncHandler(async (req, res) => {
   ApiResponse.ok('Resume retrieved successfully', resume).send(res);
 });
 
+const reparse = asyncHandler(async (req, res) => {
+  const updated = await resumeService.reparseResume(req.params.id, req.user._id);
+  ApiResponse.ok('Resume re-parsed successfully with AI', updated).send(res);
+});
+
+const analyze = asyncHandler(async (req, res) => {
+  const analysis = await resumeService.getResumeAnalysis(req.params.id, req.user._id);
+  ApiResponse.ok('Resume analysis and ATS feedback generated successfully', analysis).send(res);
+});
+
+const matchJob = asyncHandler(async (req, res) => {
+  const matchResult = await resumeService.getJobMatch(
+    req.params.id,
+    req.user._id,
+    req.params.jobId
+  );
+  ApiResponse.ok('Job match analysis calculated successfully', matchResult).send(res);
+});
+
 const updateResume = asyncHandler(async (req, res) => {
   const updated = await resumeService.updateResume(req.params.id, req.user._id, req.body);
   ApiResponse.ok('Resume updated successfully', updated).send(res);
@@ -31,6 +50,9 @@ module.exports = {
   upload,
   listResumes,
   getResume,
+  reparse,
+  analyze,
+  matchJob,
   updateResume,
   deleteResume,
 };

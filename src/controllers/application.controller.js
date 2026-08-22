@@ -38,10 +38,16 @@ const sendBulkEmail = asyncHandler(async (req, res) => {
   ApiResponse.ok('Bulk email process completed', result).send(res);
 });
 
+const getFitAnalysis = asyncHandler(async (req, res) => {
+  const result = await applicationService.getApplicationFitAnalysis(req.params.id, req.user._id);
+  ApiResponse.ok('Candidate fit analysis calculated successfully', result).send(res);
+});
+
 module.exports = {
   apply,
   getSeekerApplications,
   getJobApplications,
+  getFitAnalysis,
   updateStatus,
   addNote,
   rateCandidate,

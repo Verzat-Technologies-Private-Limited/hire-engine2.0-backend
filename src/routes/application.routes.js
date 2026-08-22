@@ -22,6 +22,7 @@ router.get('/me', authorize('jobseeker'), applicationController.getSeekerApplica
 
 // Employer ATS routes
 router.get('/jobs/:jobId/applications', authorize('employer', 'admin'), applicationController.getJobApplications);
+router.get('/:id/fit', authorize('employer', 'admin'), applicationController.getFitAnalysis);
 router.patch('/:id/status', authorize('employer', 'admin'), validate(updateApplicationStatusSchema), applicationController.updateStatus);
 router.post('/:id/notes', authorize('employer', 'admin'), validate(addNoteSchema), applicationController.addNote);
 router.post('/:id/rate', authorize('employer', 'admin'), validate(rateApplicationSchema), applicationController.rateCandidate);
