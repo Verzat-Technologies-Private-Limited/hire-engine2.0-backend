@@ -9,11 +9,13 @@ const passport = require('./config/passport');
 const config = require('./config');
 const requestLogger = require('./middlewares/requestLogger.middleware');
 const errorHandler = require('./middlewares/errorHandler.middleware');
-const { globalLimiter } = require('./middlewares/rateLimiter.middleware');
+// const { globalLimiter } = require('./middlewares/rateLimiter.middleware');
 const routes = require('./routes');
 const requestTracker = require('./middlewares/requesTracker.middleware');
 
 const app = express();
+
+app.set('trust proxy', 1);
 
 app.use(requestTracker);
 
@@ -57,7 +59,7 @@ app.use(passport.initialize());
 app.use(requestLogger);
 
 // 11. Global Rate Limiter
-app.use('/api', globalLimiter);
+// app.use('/api', globalLimiter);
 
 // 12. Mount API Routes
 app.use(`/api/${config.apiVersion}`, routes);
