@@ -104,14 +104,13 @@ applicationSchema.index({ job: 1, status: 1, appliedAt: -1 });
 applicationSchema.index({ job: 1, rating: -1 });
 
 // ── Pre-save: Track status changes ──────────────────
-applicationSchema.pre('save', function (next) {
+applicationSchema.pre('save', async function () {
   if (this.isModified('status') && !this.isNew) {
     this.statusHistory.push({
       status: this.status,
       changedAt: new Date(),
     });
   }
-  next();
 });
 
 const Application = mongoose.model('Application', applicationSchema);
