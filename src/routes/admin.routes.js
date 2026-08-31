@@ -20,6 +20,7 @@ const router = express.Router();
 router.use(authenticate, authorize('admin'));
 
 // User & Compliance Management
+router.get('/users', adminController.getAllUsers);
 router.get('/employers/pending', adminController.getPendingEmployers);
 router.patch('/employers/:id/verify', validate(verifyEmployerSchema), adminController.verifyEmployer);
 router.patch('/users/:id/suspend', validate(suspendUserSchema), adminController.suspendUser);

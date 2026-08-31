@@ -13,6 +13,29 @@ const { getPaymentAdapter } = require('../adapters/payment');
 const { paginateQuery } = require('../utils/pagination');
 
 /**
+ * List all users with optional filters (role, status, search).
+ * Returns paginated results with user id, name, email, role, and status.
+ */
+async function getAllUsers(queryParams) {
+  const filter = { role: { $ne: 'admin' } };
+  if (queryParams.role) filter.role = queryParams.role;
+  if (queryParams.status) filter.status = queryParams.status;
+  if (queryParams.search) {
+    const searchRegex = new RegExp(queryParams.search, 'i');
+    filter.$or = [
+      { firstName: searchRegex },
+      { lastName: searchRegex },
+      { email: searchRegex },
+    ];
+  }
+
+  return paginateQuery(User, filter, queryParams, {
+    select: '_id firstName lastName email role status createdAt lastLoginAt',
+    sort: '-createdAt',
+  });
+}
+
+/**
  * List pending employer business verifications.
  */
 async function getPendingEmployers(queryParams) {
@@ -55,11 +78,19 @@ async function verifyEmployer(companyId, adminId, verificationData, req) {
  * Suspend or ban a user / employer.
  */
 async function suspendUser(userId, adminId, actionData, req) {
+  if (userId === adminId.toString()) {
+    throw ApiError.badRequest('Admin cannot suspend their own account');
+  }
+
   const { action, reason } = actionData;
 
   const user = await User.findById(userId);
   if (!user) {
     throw ApiError.notFound('User not found');
+  }
+
+  if (user.role === 'admin') {
+    throw ApiError.badRequest('Cannot suspend another admin account');
   }
 
   if (action === 'suspend') user.status = 'suspended';
@@ -371,6 +402,7 @@ async function deletePlan(planId, adminId, req) {
 }
 
 module.exports = {
+  getAllUsers,
   getPendingEmployers,
   verifyEmployer,
   suspendUser,

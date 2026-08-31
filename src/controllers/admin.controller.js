@@ -2,6 +2,11 @@ const adminService = require('../services/admin.service');
 const ApiResponse = require('../utils/ApiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
+const getAllUsers = asyncHandler(async (req, res) => {
+  const result = await adminService.getAllUsers(req.query);
+  ApiResponse.ok('All users retrieved', result.docs, result.meta).send(res);
+});
+
 const getPendingEmployers = asyncHandler(async (req, res) => {
   const result = await adminService.getPendingEmployers(req.query);
   ApiResponse.ok('Pending employer verification list', result.docs, result.meta).send(res);
@@ -88,6 +93,7 @@ const deletePlan = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAllUsers,
   getPendingEmployers,
   verifyEmployer,
   suspendUser,
