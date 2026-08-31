@@ -22,6 +22,7 @@ const auditLogSchema = new mongoose.Schema(
         'config.updated',
         'taxonomy.created', 'taxonomy.updated',
         'flag.resolved',
+        'plan.created', 'plan.updated', 'plan-deleted',
         'gdpr.deletion_requested', 'gdpr.deletion_completed',
         'admin.login',
       ],
@@ -30,7 +31,7 @@ const auditLogSchema = new mongoose.Schema(
     // What was affected
     targetModel: {
       type: String,
-      enum: ['User', 'Company', 'Job', 'Application', 'Subscription', 'Transaction', 'SystemConfig', 'Taxonomy', 'Flag', ''],
+      enum: ['User', 'Company', 'Job', 'Application', 'Subscription', 'Transaction', 'SystemConfig', 'Taxonomy', 'Flag', 'Plan',''],
       default: '',
     },
 
