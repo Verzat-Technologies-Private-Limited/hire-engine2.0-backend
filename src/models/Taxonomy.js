@@ -57,11 +57,13 @@ taxonomySchema.index({ type: 1, isActive: 1, sortOrder: 1 });
 taxonomySchema.index({ slug: 1 });
 
 // ── Pre-save: Generate slug ─────────────────────
-taxonomySchema.pre('save', function (next) {
+taxonomySchema.pre('save', async function () {
   if (this.isModified('name') || !this.slug) {
-    this.slug = this.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
   }
-  next();
 });
 
 const Taxonomy = mongoose.model('Taxonomy', taxonomySchema);
