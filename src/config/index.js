@@ -116,6 +116,12 @@ const config = {
     model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
     embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001',
   },
+
+  // ── Geocoding ──────────────────────────────────
+  geocode: {
+    provider: process.env.GEOCODE_PROVIDER || 'none', // 'opencage' | 'none'
+    opencageApiKey: process.env.OPENCAGE_API_KEY || '',
+  },
 };
 
 /**

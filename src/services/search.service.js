@@ -182,6 +182,8 @@ async function _keywordSearchJobs(searchParams) {
         $maxDistance: radiusInMeters,
       },
     };
+    // Exclude documents that have no coordinates stored
+    filter['location.coordinates.coordinates'] = { $exists: true, $ne: [] };
   } else if (location) {
     filter.$or = [
       { 'location.city': { $regex: location, $options: 'i' } },
@@ -320,6 +322,14 @@ async function _keywordSearchResumes(searchParams) {
 
   if (education) {
     filter['parsedData.education.degree'] = { $regex: education, $options: 'i' };
+  }
+
+  // Location filter — match against parsed resume location and experience locations
+  if (location) {
+    filter.$or = [
+      { 'parsedData.personalInfo.location': { $regex: location, $options: 'i' } },
+      { 'parsedData.experience.location': { $regex: location, $options: 'i' } },
+    ];
   }
 
   let sortOption = '-createdAt';

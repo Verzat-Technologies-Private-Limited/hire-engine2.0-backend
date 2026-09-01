@@ -5,6 +5,7 @@ const ApiError = require('../utils/ApiError');
 const { paginateQuery } = require('../utils/pagination');
 const { getQueueAdapter } = require('../adapters/queue');
 const { generateJobEmbedding } = require('./embedding.service');
+const { geocodeLocation } = require('../utils/geocode');
 const logger = require('../config/logger');
 
 const queueAdapter = getQueueAdapter();
@@ -44,6 +45,17 @@ async function createJob(userId, jobData) {
     throw ApiError.forbidden(
       'Job posting quota exceeded for your current subscription plan. Please upgrade.'
     );
+  }
+
+  // Auto-geocode location if coordinates are missing
+  if (jobData.location) {
+    try {
+      jobData.location = await geocodeLocation(jobData.location);
+    } catch (err) {
+      logger.warn('Geocoding failed during job creation, proceeding without coordinates', {
+        error: err.message,
+      });
+    }
   }
 
   // Always create job in 'draft' status — publisher flow handles activation
@@ -107,6 +119,17 @@ async function updateJob(jobId, userId, updateData) {
   const company = await Company.findById(job.company);
   if (!company || !company.isTeamMember(userId)) {
     throw ApiError.forbidden('You do not have permission to update this job posting');
+  }
+
+  // Auto-geocode location if it was updated
+  if (updateData.location) {
+    try {
+      updateData.location = await geocodeLocation(updateData.location);
+    } catch (err) {
+      logger.warn('Geocoding failed during job update, proceeding without coordinates', {
+        error: err.message,
+      });
+    }
   }
 
   Object.assign(job, updateData);

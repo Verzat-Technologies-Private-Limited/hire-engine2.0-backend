@@ -4,6 +4,9 @@ const Application = require('../models/Application');
 const SavedSearch = require('../models/SavedSearch');
 const ApiError = require('../utils/ApiError');
 const { getCountryPlugin } = require('../plugins/countries');
+const { geocodeLocation } = require('../utils/geocode');
+const { countryNameToCode } = require('../utils/countryMapping');
+const logger = require('../config/logger');
 
 /**
  * Get user profile by ID.
@@ -35,6 +38,25 @@ async function updateProfile(userId, updateData) {
   delete updateData.role;
   delete updateData.authProvider;
   delete updateData.passwordHash;
+
+  // Auto-geocode location if coordinates are missing
+  if (updateData.location) {
+    try {
+      updateData.location = await geocodeLocation(updateData.location);
+    } catch (err) {
+      logger.warn('Geocoding failed during profile update, proceeding without coordinates', {
+        error: err.message,
+      });
+    }
+
+    // Auto-derive countryCode from location.country if not explicitly provided
+    if (updateData.location.country && !updateData.countryCode) {
+      const derivedCode = countryNameToCode(updateData.location.country);
+      if (derivedCode) {
+        updateData.countryCode = derivedCode;
+      }
+    }
+  }
 
   Object.assign(user, updateData);
   await user.save();
