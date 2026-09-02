@@ -10,6 +10,28 @@ const emailService = require('./email.service');
 const logger = require('../config/logger');
 
 /**
+ * Sanitize corrupted location.coordinates on existing User documents.
+ * Legacy documents may have `coordinates: { type: 'Point' }` (no coordinates array),
+ * which causes the MongoDB 2dsphere index to throw on any save().
+ * This function unsets the coordinates subdocument if it is invalid.
+ * @param {object} user - Mongoose User document
+ */
+function _sanitizeUserCoordinates(user) {
+  const coords = user?.location?.coordinates;
+  if (!coords) return;
+
+  const hasValidArray =
+    Array.isArray(coords.coordinates) &&
+    coords.coordinates.length === 2 &&
+    !(coords.coordinates[0] === 0 && coords.coordinates[1] === 0);
+
+  if (!hasValidArray) {
+    user.location.coordinates = undefined;
+    user.markModified('location.coordinates');
+  }
+}
+
+/**
  * Register a new user with email and password.
  * @param {object} userData
  * @returns {Promise<{ user: object, tokens: object }>}
@@ -87,6 +109,8 @@ async function login(email, password) {
   }
 
   // Update last login
+  // Sanitize legacy corrupted coordinates before save to avoid 2dsphere index errors
+  _sanitizeUserCoordinates(user);
   user.lastLoginAt = new Date();
   await user.save();
 
@@ -117,6 +141,8 @@ async function handleOAuthCallback(profile) {
     if (profile.avatar && !user.avatar) {
       user.avatar = profile.avatar;
     }
+    // Sanitize legacy corrupted coordinates before save to avoid 2dsphere index errors
+    _sanitizeUserCoordinates(user);
     await user.save();
   } else {
     // New OAuth user

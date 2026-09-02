@@ -2,6 +2,21 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { UserRole, AuthProvider, UserStatus, ProfileVisibility } = require('../utils/constants');
 
+const pointSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+    },
+    coordinates: {
+      type: [Number],
+      required: true, // [lng, lat]
+    },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     firstName: {
@@ -107,8 +122,8 @@ const userSchema = new mongoose.Schema(
       country: { type: String, default: '' },
       postalCode: { type: String, default: '' },
       coordinates: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number], default: undefined }, // [lng, lat]
+        type: pointSchema,
+        default: undefined,
       },
     },
 
@@ -168,6 +183,28 @@ userSchema.pre('save', async function () {
   if (!this.isModified('passwordHash') || !this.passwordHash) return ;
   const salt = await bcrypt.genSalt(12);
   this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
+});
+
+// ── Pre-save: Sanitize location coordinates ──────────
+// Ensures invalid GeoJSON (e.g. `{ type: 'Point' }` without a coordinates array)
+// never reaches the 2dsphere index, which would cause a hard MongoServerError.
+userSchema.pre('save', function () {
+  const coords = this.location?.coordinates;
+  if (!coords) return;
+
+  const arr = coords.coordinates;
+  const isValid =
+    Array.isArray(arr) &&
+    arr.length === 2 &&
+    typeof arr[0] === 'number' && isFinite(arr[0]) &&
+    typeof arr[1] === 'number' && isFinite(arr[1]) &&
+    !(arr[0] === 0 && arr[1] === 0) &&
+    arr[1] >= -90 && arr[1] <= 90 &&
+    arr[0] >= -180 && arr[0] <= 180;
+
+  if (!isValid) {
+    this.location.coordinates = undefined;
+  }
 });
 
 // ── Instance Methods ────────────────────────────────

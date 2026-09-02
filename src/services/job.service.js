@@ -47,15 +47,17 @@ async function createJob(userId, jobData) {
     );
   }
 
-  // Auto-geocode location if coordinates are missing
-  if (jobData.location) {
-    try {
-      jobData.location = await geocodeLocation(jobData.location);
-    } catch (err) {
-      logger.warn('Geocoding failed during job creation, proceeding without coordinates', {
-        error: err.message,
-      });
+  // Handle location coordinates:
+  // Remote jobs never need coordinates (no geo-proximity makes sense for them).
+  // For all other jobs, geocodeLocation handles everything: it sanitizes incoming
+  // coordinates, calls the geocoder, and always returns a 2dsphere-safe object
+  // whether geocoding succeeds, fails, or is disabled.
+  if (jobData.workplaceType === 'remote') {
+    if (jobData.location) {
+      delete jobData.location.coordinates;
     }
+  } else if (jobData.location) {
+    jobData.location = await geocodeLocation(jobData.location);
   }
 
   // Always create job in 'draft' status — publisher flow handles activation
@@ -121,15 +123,19 @@ async function updateJob(jobId, userId, updateData) {
     throw ApiError.forbidden('You do not have permission to update this job posting');
   }
 
-  // Auto-geocode location if it was updated
-  if (updateData.location) {
-    try {
-      updateData.location = await geocodeLocation(updateData.location);
-    } catch (err) {
-      logger.warn('Geocoding failed during job update, proceeding without coordinates', {
-        error: err.message,
-      });
+  // Auto-geocode location if it was updated.
+  // Remote jobs never need coordinates. geocodeLocation() is production-safe:
+  // it always returns a 2dsphere-compatible object, even if geocoding fails.
+  const effectiveWorkplaceType = updateData.workplaceType || job.workplaceType;
+  if (effectiveWorkplaceType === 'remote') {
+    if (updateData.location) {
+      delete updateData.location.coordinates;
     }
+    if (job.location) {
+      job.location.coordinates = undefined;
+    }
+  } else if (updateData.location) {
+    updateData.location = await geocodeLocation(updateData.location);
   }
 
   Object.assign(job, updateData);

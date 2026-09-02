@@ -7,7 +7,8 @@ const jobSearchSchema = {
     title: Joi.string().max(100).allow(''),
     company: Joi.string().max(100).allow(''),
     location: Joi.string().max(100).allow(''),
-    radius: Joi.number().min(1).max(500),            // miles
+    radius: Joi.number().min(1).max(500),            // miles or kilometers
+    unit: Joi.string().valid('mi', 'miles', 'km', 'kilometers').default('mi'),
     lat: Joi.number().min(-90).max(90),
     lng: Joi.number().min(-180).max(180),
     salaryMin: Joi.number().min(0),

@@ -172,24 +172,64 @@ async function _keywordSearchJobs(searchParams) {
 
   // Location / GeoSpatial filter
   if (lat && lng && radius) {
-    const radiusInMeters = Number(radius) * 1609.34; // miles to meters
-    filter['location.coordinates'] = {
-      $near: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [Number(lng), Number(lat)],
+    const isKm = searchParams.unit === 'km' || searchParams.unit === 'kilometers';
+    const earthRadius = isKm ? 6378.1 : 3963.2; // Earth radius in km vs miles
+    const radiusInRadians = Number(radius) / earthRadius;
+
+    const geoOrRemoteCondition = [
+      {
+        'location.coordinates': {
+          $geoWithin: {
+            $centerSphere: [
+              [Number(lng), Number(lat)],
+              radiusInRadians,
+            ],
+          },
         },
-        $maxDistance: radiusInMeters,
       },
-    };
-    // Exclude documents that have no coordinates stored
-    filter['location.coordinates.coordinates'] = { $exists: true, $ne: [] };
+      { workplaceType: 'remote' },
+    ];
+
+    // If workplaceType was not explicitly restricted to non-remote, include both in-radius & remote jobs
+    if (!filter.workplaceType) {
+      if (!filter.$or) {
+        filter.$or = geoOrRemoteCondition;
+      } else {
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: geoOrRemoteCondition });
+      }
+    } else {
+      const types = Array.isArray(filter.workplaceType.$in) ? filter.workplaceType.$in : [];
+      if (types.includes('remote')) {
+        if (!filter.$or) {
+          filter.$or = geoOrRemoteCondition;
+        } else {
+          filter.$and = filter.$and || [];
+          filter.$and.push({ $or: geoOrRemoteCondition });
+        }
+      } else {
+        filter['location.coordinates'] = {
+          $geoWithin: {
+            $centerSphere: [
+              [Number(lng), Number(lat)],
+              radiusInRadians,
+            ],
+          },
+        };
+      }
+    }
   } else if (location) {
-    filter.$or = [
+    const locationCondition = [
       { 'location.city': { $regex: location, $options: 'i' } },
       { 'location.state': { $regex: location, $options: 'i' } },
       { 'location.country': { $regex: location, $options: 'i' } },
     ];
+    if (!filter.$or) {
+      filter.$or = locationCondition;
+    } else {
+      filter.$and = filter.$and || [];
+      filter.$and.push({ $or: locationCondition });
+    }
   }
 
   // 3. Sorting options

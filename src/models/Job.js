@@ -6,6 +6,21 @@ const {
   ScreeningQuestionType,
 } = require('../utils/constants');
 
+const pointSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+    },
+    coordinates: {
+      type: [Number],
+      required: true, // [lng, lat]
+    },
+  },
+  { _id: false }
+);
+
 const jobSchema = new mongoose.Schema(
   {
     company: {
@@ -94,8 +109,8 @@ const jobSchema = new mongoose.Schema(
       country: { type: String, default: '' },
       postalCode: { type: String, default: '' },
       coordinates: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number], default: undefined }, // [lng, lat]
+        type: pointSchema,
+        default: undefined,
       },
     },
 
@@ -226,11 +241,25 @@ jobSchema.index({ skills: 1 });
 jobSchema.index({ employmentType: 1, workplaceType: 1 });
 jobSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL: auto-delete expired jobs data
 
-// ── Pre-save: Generate slug ─────────────────────────
+// ── Pre-save: Generate slug & sanitize location ──────
 jobSchema.pre('save', function () {
   if (this.isModified('title') || !this.slug) {
     const slugify = require('slugify');
     this.slug = slugify(this.title, { lower: true, strict: true }) + '-' + Date.now().toString(36);
+  }
+
+  // If workplace type is remote, coordinates should be completely ignored/unset
+  if (this.workplaceType === WorkplaceType.REMOTE || this.workplaceType === 'remote') {
+    if (this.location) {
+      this.location.coordinates = undefined;
+    }
+  } else if (
+    this.location?.coordinates &&
+    (!Array.isArray(this.location.coordinates.coordinates) ||
+      this.location.coordinates.coordinates.length !== 2 ||
+      (this.location.coordinates.coordinates[0] === 0 && this.location.coordinates.coordinates[1] === 0))
+  ) {
+    this.location.coordinates = undefined;
   }
 });
 

@@ -1,6 +1,21 @@
 const mongoose = require('mongoose');
 const { VerificationStatus, TeamPermission } = require('../utils/constants');
 
+const pointSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+    },
+    coordinates: {
+      type: [Number],
+      required: true, // [lng, lat]
+    },
+  },
+  { _id: false }
+);
+
 const companySchema = new mongoose.Schema(
   {
     owner: {
@@ -135,8 +150,8 @@ const companySchema = new mongoose.Schema(
       postalCode: { type: String, default: '' },
       country: { type: String, default: '' },
       coordinates: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number], default: [0, 0] },
+        type: pointSchema,
+        default: undefined,
       },
     },
 
@@ -168,6 +183,27 @@ companySchema.pre('save', function () {
   if (this.isModified('name') || !this.slug) {
     const slugify = require('slugify');
     this.slug = slugify(this.name, { lower: true, strict: true }) + '-' + Date.now().toString(36);
+  }
+});
+
+// ── Pre-save: Sanitize address coordinates ───────────
+// Ensures invalid GeoJSON never reaches the 2dsphere index on the address field.
+companySchema.pre('save', function () {
+  const coords = this.address?.coordinates;
+  if (!coords) return;
+
+  const arr = coords.coordinates;
+  const isValid =
+    Array.isArray(arr) &&
+    arr.length === 2 &&
+    typeof arr[0] === 'number' && isFinite(arr[0]) &&
+    typeof arr[1] === 'number' && isFinite(arr[1]) &&
+    !(arr[0] === 0 && arr[1] === 0) &&
+    arr[1] >= -90 && arr[1] <= 90 &&
+    arr[0] >= -180 && arr[0] <= 180;
+
+  if (!isValid) {
+    this.address.coordinates = undefined;
   }
 });
 

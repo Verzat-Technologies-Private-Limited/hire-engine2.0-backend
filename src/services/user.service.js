@@ -9,6 +9,27 @@ const { countryNameToCode } = require('../utils/countryMapping');
 const logger = require('../config/logger');
 
 /**
+ * Sanitize corrupted location.coordinates on existing User documents.
+ * Legacy documents may have `coordinates: { type: 'Point' }` (no coordinates array),
+ * which causes the MongoDB 2dsphere index to throw on any save().
+ * @param {object} user - Mongoose User document
+ */
+function _sanitizeUserCoordinates(user) {
+  const coords = user?.location?.coordinates;
+  if (!coords) return;
+
+  const hasValidArray =
+    Array.isArray(coords.coordinates) &&
+    coords.coordinates.length === 2 &&
+    !(coords.coordinates[0] === 0 && coords.coordinates[1] === 0);
+
+  if (!hasValidArray) {
+    user.location.coordinates = undefined;
+    user.markModified('location.coordinates');
+  }
+}
+
+/**
  * Get user profile by ID.
  * @param {string} userId
  * @returns {Promise<object>}
@@ -39,15 +60,11 @@ async function updateProfile(userId, updateData) {
   delete updateData.authProvider;
   delete updateData.passwordHash;
 
-  // Auto-geocode location if coordinates are missing
+  // Auto-geocode location if provided.
+  // geocodeLocation() is production-safe: it always returns a 2dsphere-compatible
+  // object even if the geocoding provider fails or is disabled.
   if (updateData.location) {
-    try {
-      updateData.location = await geocodeLocation(updateData.location);
-    } catch (err) {
-      logger.warn('Geocoding failed during profile update, proceeding without coordinates', {
-        error: err.message,
-      });
-    }
+    updateData.location = await geocodeLocation(updateData.location);
 
     // Auto-derive countryCode from location.country if not explicitly provided
     if (updateData.location.country && !updateData.countryCode) {
@@ -59,6 +76,7 @@ async function updateProfile(userId, updateData) {
   }
 
   Object.assign(user, updateData);
+  _sanitizeUserCoordinates(user);
   await user.save();
 
   return user.toJSON();
@@ -77,6 +95,7 @@ async function toggleVisibility(userId, visibility) {
   }
 
   user.profileVisibility = visibility;
+  _sanitizeUserCoordinates(user);
   await user.save();
 
   return user.toJSON();
@@ -121,6 +140,7 @@ async function requestGdprDeletion(userId) {
     user.skills = [];
   }
 
+  _sanitizeUserCoordinates(user);
   await user.save();
 
   // Clean up resumes & saved searches
