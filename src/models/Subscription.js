@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { SubscriptionPlan, SubscriptionStatus, PaymentProvider } = require('../utils/constants');
+const { SubscriptionStatus, PaymentProvider } = require('../utils/constants');
 
 const subscriptionSchema = new mongoose.Schema(
   {
@@ -12,8 +12,10 @@ const subscriptionSchema = new mongoose.Schema(
 
     plan: {
       type: String,
-      enum: Object.values(SubscriptionPlan),
       required: [true, 'Subscription plan is required'],
+      trim: true,
+      // No enum here — valid planIds are enforced at the service layer via Plan.findOne().
+      // This allows admins to create plans with any planId without schema changes.
     },
 
     status: {
