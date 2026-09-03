@@ -12,8 +12,9 @@ const queueAdapter = getQueueAdapter();
 
 /**
  * Create a new job posting for a company.
- * Jobs are always created in 'draft' status. Embedding and alert processing
- * happen only when the job is published (status → 'active') via updateJobStatus.
+ * Jobs are created in 'draft' status by default. Pass publishNow:true to
+ * publish immediately — this triggers embedding generation and saved-search
+ * alert matching just like updateJobStatus does.
  * @param {string} userId
  * @param {object} jobData
  * @returns {Promise<object>}
@@ -60,17 +61,34 @@ async function createJob(userId, jobData) {
     jobData.location = await geocodeLocation(jobData.location);
   }
 
-  // Always create job in 'draft' status — publisher flow handles activation
+  const { publishNow, ...restJobData } = jobData;
+  const initialStatus = publishNow ? 'active' : 'draft';
+
+  // Always create job in 'draft' (or 'active' if publishNow) — publisher flow handles activation
   const job = await Job.create({
-    ...jobData,
+    ...restJobData,
     company: company._id,
     postedBy: userId,
-    status: 'draft',
+    status: initialStatus,
   });
 
   // Update subscription quota usage
   subscription.jobPostsUsed += 1;
   await subscription.save();
+
+  // If publishing immediately, trigger embedding + alert matching (fire-and-forget)
+  if (publishNow) {
+    queueAdapter.addJob('alertWorker', 'matchSavedSearches', { jobId: job._id }).catch((err) => {
+      logger.error('Failed to enqueue job alert match task on create+publish', { error: err.message });
+    });
+
+    generateJobEmbedding(job._id).catch((err) => {
+      logger.error('Failed to generate job embedding on create+publish', {
+        jobId: job._id,
+        error: err.message,
+      });
+    });
+  }
 
   // Build response with subscription warning if past_due
   const response = { job: job.toJSON() };

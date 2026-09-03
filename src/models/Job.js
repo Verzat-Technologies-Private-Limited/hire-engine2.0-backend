@@ -195,7 +195,6 @@ const jobSchema = new mongoose.Schema(
         // Default: 30 days from now
         return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       },
-      index: true,
     },
   },
   {
