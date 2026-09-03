@@ -182,6 +182,11 @@ async function addCandidateNote(applicationId, authorId, noteData) {
     throw ApiError.notFound('Application not found');
   }
 
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(authorId)) {
+    throw ApiError.forbidden('You do not have permission to add notes to this application');
+  }
+
   const note = await CandidateNote.create({
     application: applicationId,
     author: authorId,
@@ -199,10 +204,117 @@ async function addCandidateNote(applicationId, authorId, noteData) {
 }
 
 /**
+ * Get all internal notes for a candidate application (employer view).
+ * Private notes are only visible to their author.
+ * @param {string} applicationId
+ * @param {string} employerId
+ * @returns {Promise<object[]>}
+ */
+async function getApplicationNotes(applicationId, employerId) {
+  const application = await Application.findById(applicationId).populate('job');
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(employerId)) {
+    throw ApiError.forbidden('You do not have permission to view notes for this application');
+  }
+
+  // Return all notes where either:
+  //   - the note is public (isPrivate = false), or
+  //   - the note is private and the requester is the author
+  const notes = await CandidateNote.find({
+    application: applicationId,
+    $or: [{ isPrivate: false }, { isPrivate: true, author: employerId }],
+  })
+    .populate('author', 'firstName lastName email role')
+    .sort({ createdAt: -1 });
+
+  return notes.map((n) => n.toJSON());
+}
+
+/**
+ * Update an existing note (author-only).
+ * @param {string} applicationId
+ * @param {string} noteId
+ * @param {string} authorId
+ * @param {object} updateData - { content?, rating?, isPrivate? }
+ * @returns {Promise<object>}
+ */
+async function updateCandidateNote(applicationId, noteId, authorId, updateData) {
+  const application = await Application.findById(applicationId).populate('job');
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(authorId)) {
+    throw ApiError.forbidden('You do not have permission to modify notes on this application');
+  }
+
+  const note = await CandidateNote.findOne({ _id: noteId, application: applicationId });
+  if (!note) {
+    throw ApiError.notFound('Note not found');
+  }
+
+  // Only the original author can edit the note
+  if (note.author.toString() !== authorId.toString()) {
+    throw ApiError.forbidden('You can only edit your own notes');
+  }
+
+  if (updateData.content !== undefined) note.content = updateData.content;
+  if (updateData.isPrivate !== undefined) note.isPrivate = updateData.isPrivate;
+
+  // If the rating on the note is being updated, sync the application-level rating
+  if (updateData.rating !== undefined) {
+    note.rating = updateData.rating;
+    application.rating = updateData.rating; // null clears it
+    await application.save();
+  }
+
+  await note.save();
+  return note.toJSON();
+}
+
+/**
+ * Delete a note (author-only).
+ * Clears the application-level rating if it was sourced from this note.
+ * @param {string} applicationId
+ * @param {string} noteId
+ * @param {string} authorId
+ * @returns {Promise<void>}
+ */
+async function deleteCandidateNote(applicationId, noteId, authorId) {
+  const application = await Application.findById(applicationId).populate('job');
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(authorId)) {
+    throw ApiError.forbidden('You do not have permission to delete notes on this application');
+  }
+
+  const note = await CandidateNote.findOne({ _id: noteId, application: applicationId });
+  if (!note) {
+    throw ApiError.notFound('Note not found');
+  }
+
+  // Only the original author can delete the note
+  if (note.author.toString() !== authorId.toString()) {
+    throw ApiError.forbidden('You can only delete your own notes');
+  }
+
+  await note.deleteOne();
+}
+
+/**
  * Rate a candidate application.
  * @param {string} applicationId
  * @param {string} employerId
  * @param {number} rating
+ * @returns {Promise<object>}
  */
 async function rateCandidate(applicationId, employerId, rating) {
   const application = await Application.findById(applicationId).populate('job');
@@ -210,7 +322,35 @@ async function rateCandidate(applicationId, employerId, rating) {
     throw ApiError.notFound('Application not found');
   }
 
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(employerId)) {
+    throw ApiError.forbidden('You do not have permission to rate this application');
+  }
+
   application.rating = rating;
+  await application.save();
+
+  return application.toJSON();
+}
+
+/**
+ * Clear (remove) the rating from a candidate application.
+ * @param {string} applicationId
+ * @param {string} employerId
+ * @returns {Promise<object>}
+ */
+async function clearApplicationRating(applicationId, employerId) {
+  const application = await Application.findById(applicationId).populate('job');
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  const company = await Company.findById(application.job.company);
+  if (!company || !company.isTeamMember(employerId)) {
+    throw ApiError.forbidden('You do not have permission to modify this application');
+  }
+
+  application.rating = null;
   await application.save();
 
   return application.toJSON();
@@ -280,6 +420,10 @@ module.exports = {
   getApplicationFitAnalysis,
   updateApplicationStatus,
   addCandidateNote,
+  getApplicationNotes,
+  updateCandidateNote,
+  deleteCandidateNote,
   rateCandidate,
+  clearApplicationRating,
   sendBulkEmailToApplicants,
 };

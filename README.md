@@ -89,7 +89,15 @@ The server will start at `http://localhost:5000/api/v1`.
 
 ---
 
+## 📖 Comprehensive API Documentation
+
+- **💼 [Recruiter & Employer Frontend API Guide](file:///g:/github-hire-engine-monster-jobs/hire-engine-backend/RECRUITER_API_DOCUMENTATION.md)**: Dedicated frontend integration guide detailing all recruiter-side endpoints, payload bodies, response formats, AI features, TypeScript types, and Axios client setup.
+- **🌐 [Core Platform API Documentation](file:///g:/github-hire-engine-monster-jobs/hire-engine-backend/API_DOCUMENTATION.md)**: Full API reference covering Job Seekers, Employers, Admin, and Country Plugins.
+
+---
+
 ## 🧪 System Health & Plugins Endpoint
 
 - **Health Check**: `GET /api/v1/health`
 - **Supported Country Plugins**: `GET /api/v1/countries`
+

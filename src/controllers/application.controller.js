@@ -27,10 +27,35 @@ const addNote = asyncHandler(async (req, res) => {
   ApiResponse.created('Candidate note added successfully', note).send(res);
 });
 
+const getNotes = asyncHandler(async (req, res) => {
+  const notes = await applicationService.getApplicationNotes(req.params.id, req.user._id);
+  ApiResponse.ok('Candidate notes retrieved successfully', notes).send(res);
+});
+
+const updateNote = asyncHandler(async (req, res) => {
+  const note = await applicationService.updateCandidateNote(
+    req.params.id,
+    req.params.noteId,
+    req.user._id,
+    req.body
+  );
+  ApiResponse.ok('Candidate note updated successfully', note).send(res);
+});
+
+const deleteNote = asyncHandler(async (req, res) => {
+  await applicationService.deleteCandidateNote(req.params.id, req.params.noteId, req.user._id);
+  ApiResponse.noContent(res);
+});
+
 const rateCandidate = asyncHandler(async (req, res) => {
   const { rating } = req.body;
   const updated = await applicationService.rateCandidate(req.params.id, req.user._id, rating);
   ApiResponse.ok('Candidate rated successfully', updated).send(res);
+});
+
+const clearRating = asyncHandler(async (req, res) => {
+  const updated = await applicationService.clearApplicationRating(req.params.id, req.user._id);
+  ApiResponse.ok('Candidate rating cleared successfully', updated).send(res);
 });
 
 const sendBulkEmail = asyncHandler(async (req, res) => {
@@ -50,6 +75,10 @@ module.exports = {
   getFitAnalysis,
   updateStatus,
   addNote,
+  getNotes,
+  updateNote,
+  deleteNote,
   rateCandidate,
+  clearRating,
   sendBulkEmail,
 };

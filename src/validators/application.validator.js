@@ -68,10 +68,31 @@ const bulkEmailSchema = {
   }),
 };
 
+const noteParamsSchema = {
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+    noteId: Joi.string().hex().length(24).required(),
+  }),
+};
+
+const updateNoteSchema = {
+  body: Joi.object({
+    content: Joi.string().min(1).max(2000),
+    rating: Joi.number().integer().min(1).max(5).allow(null),
+    isPrivate: Joi.boolean(),
+  }).min(1), // at least one field required
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+    noteId: Joi.string().hex().length(24).required(),
+  }),
+};
+
 module.exports = {
   applyJobSchema,
   updateApplicationStatusSchema,
   addNoteSchema,
+  updateNoteSchema,
+  noteParamsSchema,
   rateApplicationSchema,
   bulkEmailSchema,
 };
