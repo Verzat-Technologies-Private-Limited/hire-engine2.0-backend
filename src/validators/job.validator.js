@@ -71,6 +71,7 @@ const createJobSchema = {
     ),
     benefits: Joi.array().items(Joi.string().trim()).max(20),
     applicationDeadline: Joi.date().greater('now').allow(null),
+    status: Joi.string().valid(JobStatus.ACTIVE, JobStatus.DRAFT),
     publishNow: Joi.boolean().default(false),
   }),
 };

@@ -62,9 +62,10 @@ async function createJob(userId, jobData) {
   }
 
   const { publishNow, ...restJobData } = jobData;
-  const initialStatus = publishNow ? 'active' : 'draft';
+  const isLive = Boolean(publishNow || restJobData.status === 'active');
+  const initialStatus = isLive ? 'active' : 'draft';
 
-  // Always create job in 'draft' (or 'active' if publishNow) — publisher flow handles activation
+  // Always create job with initialStatus (defaults to 'draft', or 'active' if published directly)
   const job = await Job.create({
     ...restJobData,
     company: company._id,
@@ -76,8 +77,8 @@ async function createJob(userId, jobData) {
   subscription.jobPostsUsed += 1;
   await subscription.save();
 
-  // If publishing immediately, trigger embedding + alert matching (fire-and-forget)
-  if (publishNow) {
+  // If publishing immediately (via publishNow or status: 'active'), trigger embedding + alert matching (fire-and-forget)
+  if (isLive) {
     queueAdapter.addJob('alertWorker', 'matchSavedSearches', { jobId: job._id }).catch((err) => {
       logger.error('Failed to enqueue job alert match task on create+publish', { error: err.message });
     });
@@ -200,8 +201,8 @@ async function updateJobStatus(jobId, userId, status) {
   job.status = status;
   await job.save();
 
-  // When publishing a job (transitioning to 'active'), perform expensive operations
-  if (status === 'active' && previousStatus !== 'active') {
+  // When publishing a job (transitioning to 'active' or already active without embedding), perform expensive operations
+  if (status === 'active' && (previousStatus !== 'active' || !job.embedding?.vector?.length)) {
     // Enqueue job match alert processing asynchronously
     queueAdapter.addJob('alertWorker', 'matchSavedSearches', { jobId: job._id }).catch((err) => {
       logger.error('Failed to enqueue job alert match task', { error: err.message });
