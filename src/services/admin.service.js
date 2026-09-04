@@ -46,6 +46,77 @@ async function getPendingEmployers(queryParams) {
 }
 
 /**
+ * Get detailed employer company profile for admin review.
+ * Dynamically resolves country plugin for country metadata and verification checklist.
+ * @param {string} companyId
+ * @returns {Promise<object>}
+ */
+async function getEmployerById(companyId) {
+  const company = await Company.findById(companyId)
+    .populate('owner', 'firstName lastName email phone isEmailVerified createdAt lastLoginAt')
+    .populate('verifiedBy', 'firstName lastName email');
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  let countryMeta = {
+    code: company.countryCode,
+    name: company.countryCode,
+    currency: '',
+    documentChecklist: [],
+  };
+
+  try {
+    const { getCountryPlugin } = require('../plugins/countries');
+    const plugin = getCountryPlugin(company.countryCode);
+    const requiredDocs = plugin.getRequiredCompanyDocuments() || [];
+
+    const checklist = requiredDocs.map((reqDoc) => {
+      const uploaded = company.documents.find((d) => d.type === reqDoc.type);
+      return {
+        type: reqDoc.type,
+        label: reqDoc.label,
+        description: reqDoc.description,
+        required: reqDoc.required,
+        isUploaded: Boolean(uploaded),
+        uploadedDocument: uploaded || null,
+      };
+    });
+
+    const totalRequired = requiredDocs.filter((d) => d.required).length;
+    const uploadedRequired = checklist.filter((d) => d.required && d.isUploaded).length;
+
+    countryMeta = {
+      code: plugin.code,
+      name: plugin.name,
+      currency: plugin.currency,
+      locale: plugin.locale,
+      taxConfiguration: plugin.getTaxConfiguration(),
+      privacyRules: plugin.getDataPrivacyRules(),
+      formattedAddress: plugin.formatAddress(company.address || {}),
+      verificationRules: plugin.getVerificationRules(),
+      documentChecklist: checklist,
+      documentCompleteness: {
+        totalRequired,
+        uploadedRequired,
+        isComplete: uploadedRequired >= totalRequired,
+      },
+    };
+  } catch (err) {
+    const logger = require('../config/logger');
+    logger.warn('Failed to resolve country plugin for employer review', {
+      companyId: company._id,
+      countryCode: company.countryCode,
+      error: err.message,
+    });
+  }
+
+  const result = company.toJSON();
+  result.country = countryMeta;
+  return result;
+}
+
+/**
  * Review and approve or reject employer account.
  */
 async function verifyEmployer(companyId, adminId, verificationData, req) {
@@ -404,6 +475,7 @@ async function deletePlan(planId, adminId, req) {
 module.exports = {
   getAllUsers,
   getPendingEmployers,
+  getEmployerById,
   verifyEmployer,
   suspendUser,
   getFlags,

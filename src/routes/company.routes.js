@@ -9,7 +9,9 @@ const {
   updateCompanySchema,
   addTeamMemberSchema,
   updateTeamMemberSchema,
+  uploadCompanyDocumentSchema,
 } = require('../validators/company.validator');
+const { uploadDocument } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 
@@ -27,6 +29,16 @@ router.post(
 );
 
 router.patch('/:id', authorize('employer', 'admin'), validate(updateCompanySchema), companyController.updateCompany);
+
+// Document upload & verification checklist routes
+router.post(
+  '/:id/documents',
+  authorize('employer', 'admin'),
+  uploadDocument,
+  validate(uploadCompanyDocumentSchema),
+  companyController.uploadDocument
+);
+router.get('/:id/documents', authorize('employer', 'admin'), companyController.getDocuments);
 
 // Team member management routes (Owner only)
 router.post('/:id/team', authorize('employer', 'admin'), validate(addTeamMemberSchema), companyController.addTeamMember);

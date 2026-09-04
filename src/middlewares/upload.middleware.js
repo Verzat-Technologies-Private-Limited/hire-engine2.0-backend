@@ -128,6 +128,27 @@ const uploadDocuments = multer({
 }).array('documents', 5);
 
 /**
+ * Single document upload middleware (company verification doc).
+ * Accepts a single file in the 'document' field.
+ * Max size: 10 MB.
+ */
+const uploadDocument = multer({
+  storage: new CloudinaryStorage({
+    cloudinary,
+    params: {
+      folder: 'hire-engine/documents',
+      resource_type: 'raw',
+      public_id: (_req, file) => {
+        const timestamp = Date.now();
+        const { baseName, ext } = getCleanFileInfo(file.originalname, 'pdf');
+        return `doc_${baseName}_${timestamp}.${ext}`;
+      },
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).single('document');
+
+/**
  * Delete a file from Cloudinary.
  * @param {string} publicId - Cloudinary public ID
  * @param {string} [resourceType='raw'] - 'raw' | 'image'
@@ -151,5 +172,6 @@ module.exports = {
   uploadResume,
   uploadImage,
   uploadDocuments,
+  uploadDocument,
   deleteCloudinaryFile,
 };

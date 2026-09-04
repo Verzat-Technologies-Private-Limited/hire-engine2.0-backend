@@ -63,6 +63,18 @@ async function createJob(userId, jobData) {
 
   const { publishNow, ...restJobData } = jobData;
   const isLive = Boolean(publishNow || restJobData.status === 'active');
+
+  // Country-aware verification gate: check if country plugin requires approval before publishing
+  if (isLive) {
+    const { getCountryPlugin } = require('../plugins/countries');
+    const plugin = getCountryPlugin(company.countryCode);
+    if (plugin.requiresVerificationForJobPosting() && company.verificationStatus !== 'approved') {
+      throw ApiError.forbidden(
+        `Company account is currently "${company.verificationStatus}". In ${plugin.name}, company profile verification must be approved before publishing active job listings. You can save your job as a draft in the meantime.`
+      );
+    }
+  }
+
   const initialStatus = isLive ? 'active' : 'draft';
 
   // Always create job with initialStatus (defaults to 'draft', or 'active' if published directly)
@@ -157,6 +169,17 @@ async function updateJob(jobId, userId, updateData) {
     updateData.location = await geocodeLocation(updateData.location);
   }
 
+  // Country-aware verification gate: check if country plugin requires approval before publishing
+  if (updateData.status === 'active' && job.status !== 'active') {
+    const { getCountryPlugin } = require('../plugins/countries');
+    const plugin = getCountryPlugin(company.countryCode);
+    if (plugin.requiresVerificationForJobPosting() && company.verificationStatus !== 'approved') {
+      throw ApiError.forbidden(
+        `Cannot publish job. Company account is currently "${company.verificationStatus}". In ${plugin.name}, company profile verification must be approved before publishing active job listings.`
+      );
+    }
+  }
+
   Object.assign(job, updateData);
   await job.save();
 
@@ -195,6 +218,17 @@ async function updateJobStatus(jobId, userId, status) {
   const company = await Company.findById(job.company);
   if (!company || !company.isTeamMember(userId)) {
     throw ApiError.forbidden('You do not have permission to update this job status');
+  }
+
+  // Country-aware verification gate: check if country plugin requires approval before publishing
+  if (status === 'active' && job.status !== 'active') {
+    const { getCountryPlugin } = require('../plugins/countries');
+    const plugin = getCountryPlugin(company.countryCode);
+    if (plugin.requiresVerificationForJobPosting() && company.verificationStatus !== 'approved') {
+      throw ApiError.forbidden(
+        `Cannot publish job. Company account is currently "${company.verificationStatus}". In ${plugin.name}, company profile verification must be approved before publishing active job listings.`
+      );
+    }
   }
 
   const previousStatus = job.status;

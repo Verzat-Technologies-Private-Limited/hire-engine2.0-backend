@@ -22,6 +22,7 @@ router.use(authenticate, authorize('admin'));
 // User & Compliance Management
 router.get('/users', adminController.getAllUsers);
 router.get('/employers/pending', adminController.getPendingEmployers);
+router.get('/employers/:id', adminController.getEmployerById);
 router.patch('/employers/:id/verify', validate(verifyEmployerSchema), adminController.verifyEmployer);
 router.patch('/users/:id/suspend', validate(suspendUserSchema), adminController.suspendUser);
 

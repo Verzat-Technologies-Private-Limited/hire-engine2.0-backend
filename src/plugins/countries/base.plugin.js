@@ -61,6 +61,57 @@ class BaseCountryPlugin {
     return [];
   }
 
+  /**
+   * Check if this country requires a corporate business email for employer accounts.
+   * Default is true. Plugins can override if local regulations or market customs differ.
+   * @returns {boolean}
+   */
+  isCorporateEmailRequired() {
+    return true;
+  }
+
+  /**
+   * Validate employer email for company registration in this country.
+   * Default implementation checks against disposable/free email providers.
+   * @param {string} email
+   * @param {object} [companyData]
+   * @returns {{ valid: boolean, message?: string }}
+   */
+  validateEmployerEmail(email, companyData = {}) {
+    if (!this.isCorporateEmailRequired()) {
+      return { valid: true };
+    }
+    const { validateCorporateEmail } = require('../../utils/emailDomain');
+    return validateCorporateEmail(email, companyData.website);
+  }
+
+  /**
+   * Whether companies in this country require admin approval before publishing active jobs.
+   * Default is true. When true, unverified companies can only save draft jobs.
+   * @returns {boolean}
+   */
+  requiresVerificationForJobPosting() {
+    return true;
+  }
+
+  /**
+   * Get complete verification rules & requirements for this country.
+   * @returns {{
+   *   requiresEmailVerification: boolean,
+   *   requiresCorporateEmail: boolean,
+   *   requiresVerificationForJobPosting: boolean,
+   *   requiredDocuments: Array<{ type: string, label: string, description: string, required: boolean }>
+   * }}
+   */
+  getVerificationRules() {
+    return {
+      requiresEmailVerification: true,
+      requiresCorporateEmail: this.isCorporateEmailRequired(),
+      requiresVerificationForJobPosting: this.requiresVerificationForJobPosting(),
+      requiredDocuments: this.getRequiredCompanyDocuments(),
+    };
+  }
+
   // ── Tax Configuration ─────────────────────────────
 
   /**

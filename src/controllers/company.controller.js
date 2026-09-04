@@ -38,6 +38,21 @@ const removeTeamMember = asyncHandler(async (req, res) => {
   ApiResponse.ok('Team member removed successfully').send(res);
 });
 
+const uploadDocument = asyncHandler(async (req, res) => {
+  const result = await companyService.uploadCompanyDocument(
+    req.params.id,
+    req.user._id,
+    req.file,
+    req.body
+  );
+  ApiResponse.created('Company document uploaded successfully', result).send(res);
+});
+
+const getDocuments = asyncHandler(async (req, res) => {
+  const result = await companyService.getCompanyDocuments(req.params.id, req.user._id);
+  ApiResponse.ok('Company documents and verification checklist retrieved', result).send(res);
+});
+
 module.exports = {
   registerCompany,
   getCompany,
@@ -45,4 +60,6 @@ module.exports = {
   addTeamMember,
   updateTeamMemberPermissions,
   removeTeamMember,
+  uploadDocument,
+  getDocuments,
 };

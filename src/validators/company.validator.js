@@ -77,9 +77,22 @@ const updateTeamMemberSchema = {
   }),
 };
 
+const uploadCompanyDocumentSchema = {
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+  }),
+  body: Joi.object({
+    type: Joi.string().trim().required().messages({
+      'any.required': 'Document type is required (e.g. gst_certificate, ein_letter)',
+    }),
+    label: Joi.string().trim().max(200).allow(''),
+  }),
+};
+
 module.exports = {
   createCompanySchema,
   updateCompanySchema,
   addTeamMemberSchema,
   updateTeamMemberSchema,
+  uploadCompanyDocumentSchema,
 };

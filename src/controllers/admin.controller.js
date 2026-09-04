@@ -12,6 +12,11 @@ const getPendingEmployers = asyncHandler(async (req, res) => {
   ApiResponse.ok('Pending employer verification list', result.docs, result.meta).send(res);
 });
 
+const getEmployerById = asyncHandler(async (req, res) => {
+  const result = await adminService.getEmployerById(req.params.id);
+  ApiResponse.ok('Employer company details retrieved successfully', result).send(res);
+});
+
 const verifyEmployer = asyncHandler(async (req, res) => {
   const company = await adminService.verifyEmployer(req.params.id, req.user._id, req.body, req);
   ApiResponse.ok('Employer verification decision recorded', company).send(res);
@@ -95,6 +100,7 @@ const deletePlan = asyncHandler(async (req, res) => {
 module.exports = {
   getAllUsers,
   getPendingEmployers,
+  getEmployerById,
   verifyEmployer,
   suspendUser,
   getFlags,

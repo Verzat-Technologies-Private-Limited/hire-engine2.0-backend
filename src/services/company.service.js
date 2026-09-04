@@ -19,7 +19,31 @@ async function registerCompany(ownerId, companyData, countryPlugin) {
   // Use resolved country plugin or fetch by countryCode
   const plugin = countryPlugin || getCountryPlugin(countryCode);
 
-  // 1. Validate registration details against Country Plugin Joi schema
+  // 1. Verify owner account eligibility according to country plugin rules
+  const owner = await User.findById(ownerId);
+  if (!owner) {
+    throw ApiError.notFound('User not found');
+  }
+
+  const verificationRules = plugin.getVerificationRules();
+
+  // Gap 1: Email verification check
+  if (verificationRules.requiresEmailVerification && !owner.isEmailVerified) {
+    throw ApiError.forbidden(
+      'Email verification is required before registering an employer company profile. Please verify your email address first.'
+    );
+  }
+
+  // Gap 2: Corporate email domain check
+  const emailValidation = plugin.validateEmployerEmail(owner.email, companyData);
+  if (!emailValidation.valid) {
+    throw ApiError.badRequest(
+      emailValidation.message ||
+        `A business/corporate email address is required to register an employer profile in ${plugin.name}. Free email providers are not permitted.`
+    );
+  }
+
+  // 2. Validate registration details against Country Plugin Joi schema
   const regSchema = plugin.getCompanyRegistrationSchema();
   if (regSchema && registrationDetails) {
     const { error } = regSchema.validate(registrationDetails, { abortEarly: false });
@@ -32,7 +56,7 @@ async function registerCompany(ownerId, companyData, countryPlugin) {
     }
   }
 
-  // 2. Perform country-specific business validation
+  // 3. Perform country-specific business validation
   const customValidation = plugin.validateCompanyRegistration({
     ...companyData,
     ...registrationDetails,
@@ -202,6 +226,117 @@ async function removeTeamMember(companyId, ownerId, memberUserId) {
   await User.findByIdAndUpdate(memberUserId, { company: null, role: 'jobseeker' });
 }
 
+/**
+ * Upload a verification document for a company.
+ * Dynamically validates against the company's country plugin.
+ * @param {string} companyId
+ * @param {string} userId
+ * @param {object} file - Multer uploaded file object
+ * @param {object} docData - { type, label }
+ * @returns {Promise<object>}
+ */
+async function uploadCompanyDocument(companyId, userId, file, docData) {
+  if (!file) {
+    throw ApiError.badRequest('Document file is required for upload');
+  }
+
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  if (!company.isTeamMember(userId)) {
+    throw ApiError.forbidden('You do not have permission to upload documents for this company');
+  }
+
+  const plugin = getCountryPlugin(company.countryCode);
+  const recognizedDocs = plugin.getRequiredCompanyDocuments() || [];
+  const recognizedTypes = recognizedDocs.map((d) => d.type);
+
+  // Validate that document type is valid for this country plugin (if plugin defines recognized types)
+  if (recognizedTypes.length > 0 && !recognizedTypes.includes(docData.type)) {
+    throw ApiError.badRequest(
+      `Invalid document type "${docData.type}" for ${plugin.name}. Allowed types: ${recognizedTypes.join(', ')}`
+    );
+  }
+
+  const matchedMeta = recognizedDocs.find((d) => d.type === docData.type);
+  const label = docData.label || matchedMeta?.label || docData.type;
+
+  const newDoc = {
+    type: docData.type,
+    label,
+    fileUrl: file.path || file.secure_url || file.url || '',
+    publicId: file.filename || file.public_id || '',
+    uploadedAt: new Date(),
+  };
+
+  // If document of same type was already uploaded, replace it
+  const existingDocIndex = company.documents.findIndex((d) => d.type === docData.type);
+  if (existingDocIndex >= 0) {
+    const oldPublicId = company.documents[existingDocIndex].publicId;
+    if (oldPublicId) {
+      const { deleteCloudinaryFile } = require('../middlewares/upload.middleware');
+      deleteCloudinaryFile(oldPublicId).catch(() => {});
+    }
+    company.documents[existingDocIndex] = newDoc;
+  } else {
+    company.documents.push(newDoc);
+  }
+
+  await company.save();
+
+  return {
+    document: newDoc,
+    documents: company.documents,
+  };
+}
+
+/**
+ * Get uploaded documents and dynamic country verification checklist for a company.
+ * @param {string} companyId
+ * @param {string} userId
+ * @returns {Promise<object>}
+ */
+async function getCompanyDocuments(companyId, userId) {
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  if (!company.isTeamMember(userId)) {
+    throw ApiError.forbidden('You do not have permission to view documents for this company');
+  }
+
+  const plugin = getCountryPlugin(company.countryCode);
+  const requiredDocs = plugin.getRequiredCompanyDocuments() || [];
+
+  const checklist = requiredDocs.map((reqDoc) => {
+    const uploaded = company.documents.find((d) => d.type === reqDoc.type);
+    return {
+      type: reqDoc.type,
+      label: reqDoc.label,
+      description: reqDoc.description,
+      required: reqDoc.required,
+      isUploaded: Boolean(uploaded),
+      uploadedDocument: uploaded || null,
+    };
+  });
+
+  const totalRequired = requiredDocs.filter((d) => d.required).length;
+  const uploadedRequired = checklist.filter((d) => d.required && d.isUploaded).length;
+
+  return {
+    companyId: company._id,
+    countryCode: company.countryCode,
+    countryName: plugin.name,
+    verificationStatus: company.verificationStatus,
+    checklist,
+    isComplete: uploadedRequired >= totalRequired,
+    documents: company.documents,
+  };
+}
+
 module.exports = {
   registerCompany,
   getCompanyById,
@@ -209,4 +344,6 @@ module.exports = {
   addTeamMember,
   updateTeamMemberPermissions,
   removeTeamMember,
+  uploadCompanyDocument,
+  getCompanyDocuments,
 };
