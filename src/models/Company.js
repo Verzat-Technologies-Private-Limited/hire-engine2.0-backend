@@ -104,6 +104,43 @@ const companySchema = new mongoose.Schema(
       default: null,
     },
 
+    infoRequestedAt: {
+      type: Date,
+      default: null,
+    },
+
+    infoRequestedNotes: {
+      type: String,
+      default: '',
+    },
+
+    reviewDeadlineAt: {
+      type: Date,
+      default: null,
+    },
+
+    phone: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    contactName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    isPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    verifiedPhone: {
+      type: Boolean,
+      default: false,
+    },
+
     // ★ Country-specific registration details (flexible schema)
     registrationDetails: {
       type: mongoose.Schema.Types.Mixed,
@@ -176,6 +213,12 @@ companySchema.index({ slug: 1 }, { unique: true });
 companySchema.index({ verificationStatus: 1, createdAt: -1 });
 companySchema.index({ 'teamMembers.user': 1 });
 companySchema.index({ 'address.coordinates': '2dsphere' });
+
+// Gap 11: Fraud & Duplicate prevention indexes on registration identifiers
+companySchema.index({ 'registrationDetails.gstNumber': 1 }, { sparse: true });
+companySchema.index({ 'registrationDetails.panNumber': 1 }, { sparse: true });
+companySchema.index({ 'registrationDetails.cinNumber': 1 }, { sparse: true });
+companySchema.index({ 'registrationDetails.einNumber': 1 }, { sparse: true });
 
 // ── Pre-save: Generate slug ─────────────────────────
 companySchema.pre('save', function () {

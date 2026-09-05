@@ -53,6 +53,21 @@ const getDocuments = asyncHandler(async (req, res) => {
   ApiResponse.ok('Company documents and verification checklist retrieved', result).send(res);
 });
 
+const sendPhoneOtp = asyncHandler(async (req, res) => {
+  const result = await companyService.sendCompanyPhoneOtp(req.body.phone);
+  ApiResponse.ok(result.message, result).send(res);
+});
+
+const verifyPhoneOtp = asyncHandler(async (req, res) => {
+  const updated = await companyService.verifyCompanyPhoneOtp(
+    req.params.id,
+    req.user._id,
+    req.body.phone,
+    req.body.otp
+  );
+  ApiResponse.ok('Company phone verified successfully', updated).send(res);
+});
+
 module.exports = {
   registerCompany,
   getCompany,
@@ -62,4 +77,6 @@ module.exports = {
   removeTeamMember,
   uploadDocument,
   getDocuments,
+  sendPhoneOtp,
+  verifyPhoneOtp,
 };

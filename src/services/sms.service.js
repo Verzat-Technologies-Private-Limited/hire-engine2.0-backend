@@ -33,68 +33,22 @@ function generateOtp(length = 6) {
   return num.toString().padStart(length, '0');
 }
 
-/**
- * Helper to make HTTP GET request.
- * @param {string} url
- * @returns {Promise<any>}
- */
-function httpGet(url) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    client
-      .get(url, (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            resolve(parsed);
-          } catch {
-            resolve(data);
-          }
-        });
-      })
-      .on('error', (err) => reject(err));
-  });
-}
+const { getSmsAdapter } = require('../adapters/sms');
 
 /**
- * Dispatch OTP SMS via DoveSoft API gateway.
+ * Dispatch OTP SMS via configured SMS Adapter (DoveSoft or Console stub).
  * @param {string} mobile - Recipient phone number
  * @param {string} otp - OTP code
- * @returns {Promise<any>} API response
+ * @param {number} [ttlSeconds=300] - Expiry in seconds
+ * @returns {Promise<any>} Adapter response
  */
-async function sendOtpSMS(mobile, otp) {
-  const key = config.dovesoft.apiKey || process.env.DOVESOFT_API_KEY;
-  const senderid = config.dovesoft.senderId || process.env.DOVESOFT_SENDER_ID;
-  const entityid = config.dovesoft.entityId || process.env.DOVESOFT_ENTITY_ID;
-  const tempid = config.dovesoft.templateId || process.env.DOVESOFT_TEMPLATE_ID;
-
-  const sms = `ZAT Chat: Your OTP for login is ${otp}. It is valid for 5 minutes. Please do not share it with anyone. KISHANENT`;
-  const url = `https://api.dovesoft.io/api/sendsms?key=${encodeURIComponent(
-    key || ''
-  )}&mobiles=${encodeURIComponent(mobile)}&sms=${encodeURIComponent(
-    sms
-  )}&senderid=${encodeURIComponent(senderid || '')}&entityid=${encodeURIComponent(
-    entityid || ''
-  )}&tempid=${encodeURIComponent(tempid || '')}`;
-
-  logger.info(`Sending OTP SMS to ${mobile} via DoveSoft API Gateway`);
-
-  // In test/development environment without API key, mock response
-  if (!key || process.env.NODE_ENV === 'test') {
-    logger.info(`[DoveSoft Mock SMS] Mobile: ${mobile}, OTP: ${otp}`);
-    return { status: 'success', message: 'OTP sent (mock)', otp };
-  }
-
-  try {
-    const response = await httpGet(url);
-    logger.info(`DoveSoft SMS API response for ${mobile}:`, { response });
-    return response;
-  } catch (error) {
-    logger.error(`Failed to send SMS via DoveSoft to ${mobile}:`, { error: error.message });
-    throw ApiError.internal(`Failed to send SMS OTP: ${error.message}`);
-  }
+async function sendOtpSMS(mobile, otp, ttlSeconds = 300) {
+  const adapter = getSmsAdapter();
+  return adapter.sendOtp({
+    to: mobile,
+    otp,
+    ttlMinutes: Math.floor(ttlSeconds / 60) || 5,
+  });
 }
 
 /**

@@ -1,8 +1,17 @@
 const Joi = require('joi');
+const {
+  VerificationStatus,
+  JobStatus,
+  EmploymentType,
+  WorkplaceType,
+  TransactionStatus,
+  TransactionType,
+  PaymentProvider,
+} = require('../utils/constants');
 
 const verifyEmployerSchema = {
   body: Joi.object({
-    status: Joi.string().valid('approved', 'rejected').required(),
+    status: Joi.string().valid(...Object.values(VerificationStatus)).required(),
     notes: Joi.string().max(1000).allow(''),
   }),
   params: Joi.object({
@@ -100,6 +109,95 @@ const updatePlanSchema = {
   }),
 };
 
+// ── Gap 1 & 2 & 3: Global Job Moderation, Force Status & Bulk Actions ──────
+
+const adminGetJobsSchema = {
+  query: Joi.object({
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    sort: Joi.string().default('-createdAt'),
+    search: Joi.string().trim().max(200).allow(''),
+    status: Joi.string().valid(...Object.values(JobStatus)).allow(''),
+    company: Joi.string().hex().length(24),
+    isSponsored: Joi.boolean(),
+    employmentType: Joi.string().valid(...Object.values(EmploymentType)).allow(''),
+    workplaceType: Joi.string().valid(...Object.values(WorkplaceType)).allow(''),
+    country: Joi.string().trim().uppercase().max(3).allow(''),
+    hasFlags: Joi.boolean(),
+  }),
+};
+
+const adminJobStatusSchema = {
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+  }),
+  body: Joi.object({
+    status: Joi.string().valid(...Object.values(JobStatus)),
+    isSponsored: Joi.boolean(),
+    expiresAt: Joi.date().iso().allow(null),
+    reason: Joi.string().trim().min(3).max(500).required(),
+  }).min(2), // reason + at least one property to update
+};
+
+const adminBulkJobActionSchema = {
+  body: Joi.object({
+    jobIds: Joi.array()
+      .items(Joi.string().hex().length(24).required())
+      .min(1)
+      .max(100)
+      .required(),
+    action: Joi.string().valid('activate', 'pause', 'close', 'expire', 'delete').required(),
+    reason: Joi.string().trim().min(3).max(500).required(),
+  }),
+};
+
+// ── Gap 4: Full Employer Directory ───────────────────────────────────────
+
+const adminGetEmployersSchema = {
+  query: Joi.object({
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    sort: Joi.string().default('-createdAt'),
+    search: Joi.string().trim().max(200).allow(''),
+    verificationStatus: Joi.string().valid(...Object.values(VerificationStatus)).allow(''),
+    countryCode: Joi.string().trim().uppercase().max(3).allow(''),
+    industry: Joi.string().trim().max(100).allow(''),
+    dateFrom: Joi.date().iso(),
+    dateTo: Joi.date().iso(),
+  }),
+};
+
+// ── Gap 5: Financial Transactions Discovery ───────────────────────────────
+
+const adminGetTransactionsSchema = {
+  query: Joi.object({
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    sort: Joi.string().default('-createdAt'),
+    status: Joi.string().valid(...Object.values(TransactionStatus)).allow(''),
+    type: Joi.string().valid(...Object.values(TransactionType)).allow(''),
+    paymentProvider: Joi.string().valid(...Object.values(PaymentProvider)).allow(''),
+    currency: Joi.string().trim().uppercase().max(10).allow(''),
+    countryCode: Joi.string().trim().uppercase().max(3).allow(''),
+    company: Joi.string().hex().length(24),
+    search: Joi.string().trim().max(200).allow(''),
+    dateFrom: Joi.date().iso(),
+    dateTo: Joi.date().iso(),
+  }),
+};
+
+// ── Gap 6: Executive Reports Analytics ───────────────────────────────────
+
+const adminExecutiveReportSchema = {
+  query: Joi.object({
+    dateFrom: Joi.date().iso(),
+    dateTo: Joi.date().iso(),
+    interval: Joi.string().valid('day', 'week', 'month').default('day'),
+    country: Joi.string().trim().uppercase().max(3).allow(''),
+    refresh: Joi.boolean().default(false),
+  }),
+};
+
 module.exports = {
   verifyEmployerSchema,
   suspendUserSchema,
@@ -109,4 +207,10 @@ module.exports = {
   processRefundSchema,
   createPlanSchema,
   updatePlanSchema,
+  adminGetJobsSchema,
+  adminJobStatusSchema,
+  adminBulkJobActionSchema,
+  adminGetEmployersSchema,
+  adminGetTransactionsSchema,
+  adminExecutiveReportSchema,
 };

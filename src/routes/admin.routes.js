@@ -12,6 +12,12 @@ const {
   processRefundSchema,
   createPlanSchema,
   updatePlanSchema,
+  adminGetJobsSchema,
+  adminJobStatusSchema,
+  adminBulkJobActionSchema,
+  adminGetEmployersSchema,
+  adminGetTransactionsSchema,
+  adminExecutiveReportSchema,
 } = require('../validators/admin.validator');
 
 const router = express.Router();
@@ -21,10 +27,20 @@ router.use(authenticate, authorize('admin'));
 
 // User & Compliance Management
 router.get('/users', adminController.getAllUsers);
+router.patch('/users/:id/suspend', validate(suspendUserSchema), adminController.suspendUser);
+
+// Gap 4: Full Employer Directory & Verifications
+router.get('/employers', validate(adminGetEmployersSchema), adminController.getAllEmployers);
 router.get('/employers/pending', adminController.getPendingEmployers);
+router.get('/employers/:id/jobs', adminController.getEmployerJobs);
 router.get('/employers/:id', adminController.getEmployerById);
 router.patch('/employers/:id/verify', validate(verifyEmployerSchema), adminController.verifyEmployer);
-router.patch('/users/:id/suspend', validate(suspendUserSchema), adminController.suspendUser);
+
+// Gap 1, 2, 3: Global Job Moderation, Force Status & Bulk Operations
+router.get('/jobs', validate(adminGetJobsSchema), adminController.getAllJobs);
+router.post('/jobs/bulk-action', validate(adminBulkJobActionSchema), adminController.bulkJobAction);
+router.get('/jobs/:id', adminController.getJobById);
+router.patch('/jobs/:id/status', validate(adminJobStatusSchema), adminController.updateJobStatus);
 
 // Content Moderation
 router.get('/flags', adminController.getFlags);
@@ -39,10 +55,12 @@ router.patch('/taxonomy/:id', validate(taxonomySchema), adminController.updateTa
 router.get('/config', adminController.getSystemConfigs);
 router.patch('/config', validate(updateConfigSchema), adminController.updateSystemConfig);
 
-// Reports & Insights
-router.get('/reports/overview', adminController.getExecutiveReport);
+// Gap 6: Reports & Monster Platform Insights
+router.get('/reports/overview', validate(adminExecutiveReportSchema), adminController.getExecutiveReport);
 
-// Financial Refunds
+// Gap 5: Financial Transactions & Refunds
+router.get('/transactions', validate(adminGetTransactionsSchema), adminController.getAllTransactions);
+router.get('/transactions/:id', adminController.getTransactionById);
 router.post('/transactions/:id/refund', validate(processRefundSchema), adminController.processRefund);
 
 // Audit Logs

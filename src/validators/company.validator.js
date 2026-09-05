@@ -9,6 +9,11 @@ const createCompanySchema = {
     size: Joi.string().valid('1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+', ''),
     description: Joi.string().max(5000).allow(''),
     countryCode: Joi.string().uppercase().length(2).required(),
+    phone: Joi.string().trim().required().messages({
+      'any.required': 'Business phone number is required for company registration',
+    }),
+    contactName: Joi.string().trim().max(100).allow(''),
+    phoneOtp: Joi.string().trim().length(6).allow(''),
     address: Joi.object({
       street: Joi.string().allow(''),
       city: Joi.string().allow(''),
@@ -33,6 +38,8 @@ const updateCompanySchema = {
     industry: Joi.string().trim().allow(''),
     size: Joi.string().valid('1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5000+', ''),
     description: Joi.string().max(5000).allow(''),
+    phone: Joi.string().trim(),
+    contactName: Joi.string().trim().max(100).allow(''),
     address: Joi.object({
       street: Joi.string().allow(''),
       city: Joi.string().allow(''),
@@ -89,10 +96,34 @@ const uploadCompanyDocumentSchema = {
   }),
 };
 
+const sendPhoneOtpSchema = {
+  body: Joi.object({
+    phone: Joi.string().trim().required().messages({
+      'any.required': 'Phone number is required to send verification OTP',
+    }),
+  }),
+};
+
+const verifyPhoneOtpSchema = {
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+  }),
+  body: Joi.object({
+    phone: Joi.string().trim().required().messages({
+      'any.required': 'Phone number is required',
+    }),
+    otp: Joi.string().trim().length(6).required().messages({
+      'any.required': '6-digit OTP is required',
+    }),
+  }),
+};
+
 module.exports = {
   createCompanySchema,
   updateCompanySchema,
   addTeamMemberSchema,
   updateTeamMemberSchema,
   uploadCompanyDocumentSchema,
+  sendPhoneOtpSchema,
+  verifyPhoneOtpSchema,
 };

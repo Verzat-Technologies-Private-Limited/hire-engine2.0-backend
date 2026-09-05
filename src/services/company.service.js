@@ -65,11 +65,58 @@ async function registerCompany(ownerId, companyData, countryPlugin) {
     throw ApiError.badRequest(`Business verification validation failed for ${plugin.name}`, customValidation.errors);
   }
 
+  if (companyData.phone) {
+    if (typeof plugin.validatePhoneNumber === 'function') {
+      const phoneValidation = plugin.validatePhoneNumber(companyData.phone);
+      if (!phoneValidation.valid) {
+        throw ApiError.badRequest(phoneValidation.message || 'Invalid business phone number');
+      }
+    }
+  } else if (verificationRules.requiresPhoneVerification) {
+    throw ApiError.badRequest(`Business phone number is required to register a company in ${plugin.name}`);
+  }
+
   // Check if owner already owns a company
   const existingOwnerCompany = await Company.findOne({ owner: ownerId });
   if (existingOwnerCompany) {
     throw ApiError.conflict('User already owns a registered company profile');
   }
+
+  // Gap 11: Fraud & Duplicate company name check (delegated to country plugin)
+  if (typeof plugin.checkDuplicateCompanyName === 'function') {
+    await plugin.checkDuplicateCompanyName(companyData.name, Company);
+  } else {
+    const trimmedName = companyData.name ? companyData.name.trim() : '';
+    if (trimmedName) {
+      const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const existingNamedCompany = await Company.findOne({
+        name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+      });
+      if (existingNamedCompany) {
+        throw ApiError.conflict(`A company with the name "${trimmedName}" is already registered`);
+      }
+    }
+  }
+
+  // Gap 11: Fraud & Duplicate registration numbers check (delegated to country plugin)
+  if (registrationDetails && typeof plugin.checkDuplicateRegistration === 'function') {
+    await plugin.checkDuplicateRegistration(registrationDetails, Company);
+  }
+
+  // Gap 3: Phone number and optional instant OTP verification
+  let isPhoneVerified = false;
+  if (companyData.phone && companyData.phoneOtp) {
+    const smsService = require('./sms.service');
+    smsService.verifyOtp(companyData.phone, companyData.phoneOtp);
+    isPhoneVerified = true;
+  }
+
+  // Gap 9: SLA Review deadline (driven by Country Plugin SLA contract, e.g. 48h for IN, 24h for US)
+  const slaHours =
+    (typeof plugin.getVerificationSLAHours === 'function'
+      ? plugin.getVerificationSLAHours()
+      : verificationRules.slaHours) || 48;
+  const reviewDeadlineAt = new Date(Date.now() + slaHours * 60 * 60 * 1000);
 
   // Create company
   const company = await Company.create({
@@ -77,6 +124,11 @@ async function registerCompany(ownerId, companyData, countryPlugin) {
     owner: ownerId,
     countryCode: plugin.code,
     verificationStatus: 'pending',
+    phone: companyData.phone,
+    contactName: companyData.contactName || '',
+    isPhoneVerified,
+    verifiedPhone: isPhoneVerified,
+    reviewDeadlineAt,
   });
 
   // Link company to User
@@ -84,6 +136,20 @@ async function registerCompany(ownerId, companyData, countryPlugin) {
 
   // Create default ATS Pipeline for company
   await Pipeline.createDefaultPipeline(company._id);
+
+  // Gap 9: Admin Notification / Dashboard Alert for New Pending Employers
+  const { notifyAdmins } = require('./notification.service');
+  const { NotificationType } = require('../utils/constants');
+  notifyAdmins(
+    NotificationType.COMPANY_PENDING_REVIEW,
+    'New Employer Registration Pending Review',
+    `Company "${company.name}" has registered and is awaiting verification review.`,
+    {
+      relatedModel: 'Company',
+      relatedId: company._id,
+      actionUrl: `/admin/employers/${company._id}`,
+    }
+  ).catch((err) => logger.error('Failed to notify admins of new company registration', { error: err.message }));
 
   return company.toJSON();
 }
@@ -337,6 +403,45 @@ async function getCompanyDocuments(companyId, userId) {
   };
 }
 
+/**
+ * Send OTP to a phone number for company verification.
+ * @param {string} phone
+ * @returns {Promise<{ success: boolean, message: string }>}
+ */
+async function sendCompanyPhoneOtp(phone) {
+  const smsService = require('./sms.service');
+  return smsService.generateAndSendOtp(phone);
+}
+
+/**
+ * Verify OTP and mark company phone as verified.
+ * @param {string} companyId
+ * @param {string} userId
+ * @param {string} phone
+ * @param {string} otp
+ * @returns {Promise<object>}
+ */
+async function verifyCompanyPhoneOtp(companyId, userId, phone, otp) {
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  if (!company.isTeamMember(userId)) {
+    throw ApiError.forbidden('You do not have permission to verify phone for this company');
+  }
+
+  const smsService = require('./sms.service');
+  smsService.verifyOtp(phone, otp);
+
+  company.phone = phone;
+  company.isPhoneVerified = true;
+  company.verifiedPhone = true;
+  await company.save();
+
+  return company.toJSON();
+}
+
 module.exports = {
   registerCompany,
   getCompanyById,
@@ -346,4 +451,6 @@ module.exports = {
   removeTeamMember,
   uploadCompanyDocument,
   getCompanyDocuments,
+  sendCompanyPhoneOtp,
+  verifyCompanyPhoneOtp,
 };

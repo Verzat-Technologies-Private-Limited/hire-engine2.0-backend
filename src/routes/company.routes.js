@@ -10,6 +10,8 @@ const {
   addTeamMemberSchema,
   updateTeamMemberSchema,
   uploadCompanyDocumentSchema,
+  sendPhoneOtpSchema,
+  verifyPhoneOtpSchema,
 } = require('../validators/company.validator');
 const { uploadDocument } = require('../middlewares/upload.middleware');
 
@@ -20,6 +22,15 @@ router.get('/:id', companyController.getCompany);
 
 // Protected routes
 router.use(authenticate);
+
+// Gap 3: Phone verification OTP routes
+router.post('/phone/send-otp', validate(sendPhoneOtpSchema), companyController.sendPhoneOtp);
+router.post(
+  '/:id/phone/verify-otp',
+  authorize('employer', 'admin'),
+  validate(verifyPhoneOtpSchema),
+  companyController.verifyPhoneOtp
+);
 
 router.post(
   '/',

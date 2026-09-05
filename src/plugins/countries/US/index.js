@@ -38,6 +38,49 @@ class USPlugin extends BaseCountryPlugin {
     return validateRegistration(data);
   }
 
+  validatePhoneNumber(phone) {
+    if (!phone || typeof phone !== 'string') {
+      return { valid: false, message: 'Business phone number is required for US companies' };
+    }
+    const cleaned = phone.replace(/[\s\-()]/g, '').replace(/^(\+1|1)/, '');
+    if (!/^[2-9][0-9]{9}$/.test(cleaned)) {
+      return {
+        valid: false,
+        message: 'Please provide a valid 10-digit US phone number (e.g., 555-123-4567)',
+      };
+    }
+    return { valid: true };
+  }
+
+  isPhoneVerificationRequired() {
+    return false;
+  }
+
+  getVerificationSLAHours() {
+    return 24;
+  }
+
+  getUniqueRegistrationFields() {
+    return [{ field: 'einNumber', label: 'EIN', transform: (v) => v.trim() }];
+  }
+
+  async checkDuplicateRegistration(registrationDetails, CompanyModel) {
+    await super.checkDuplicateRegistration(registrationDetails, CompanyModel);
+    const ein = registrationDetails?.einNumber || registrationDetails?.ein;
+    if (ein && typeof ein === 'string' && ein.trim()) {
+      const existing = await CompanyModel.findOne({
+        $or: [
+          { 'registrationDetails.einNumber': ein.trim() },
+          { 'registrationDetails.ein': ein.trim() },
+        ],
+      });
+      if (existing) {
+        const ApiError = require('../../../utils/ApiError');
+        throw ApiError.conflict('A company with this EIN is already registered in the system');
+      }
+    }
+  }
+
   getRequiredCompanyDocuments() {
     return [
       {

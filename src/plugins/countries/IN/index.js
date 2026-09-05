@@ -38,6 +38,36 @@ class IndiaPlugin extends BaseCountryPlugin {
     return validateRegistration(data);
   }
 
+  validatePhoneNumber(phone) {
+    if (!phone || typeof phone !== 'string') {
+      return { valid: false, message: 'Business phone number is required for Indian companies' };
+    }
+    const cleaned = phone.replace(/[\s\-()]/g, '').replace(/^(\+91|0)/, '');
+    if (!/^[6-9][0-9]{9}$/.test(cleaned)) {
+      return {
+        valid: false,
+        message: 'Please provide a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9',
+      };
+    }
+    return { valid: true };
+  }
+
+  isPhoneVerificationRequired() {
+    return true;
+  }
+
+  getVerificationSLAHours() {
+    return 48;
+  }
+
+  getUniqueRegistrationFields() {
+    return [
+      { field: 'gstNumber', label: 'GST number', transform: (v) => v.toUpperCase() },
+      { field: 'panNumber', label: 'PAN number', transform: (v) => v.toUpperCase() },
+      { field: 'cinNumber', label: 'CIN number', transform: (v) => v.toUpperCase() },
+    ];
+  }
+
   getRequiredCompanyDocuments() {
     return [
       {

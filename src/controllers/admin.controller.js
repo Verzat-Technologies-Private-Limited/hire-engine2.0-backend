@@ -63,7 +63,7 @@ const updateSystemConfig = asyncHandler(async (req, res) => {
 });
 
 const getExecutiveReport = asyncHandler(async (req, res) => {
-  const report = await adminService.getExecutiveReport();
+  const report = await adminService.getExecutiveReport(req.query);
   ApiResponse.ok('Executive report metrics generated', report).send(res);
 });
 
@@ -97,6 +97,56 @@ const deletePlan = asyncHandler(async (req, res) => {
   ApiResponse.ok(result.message).send(res);
 });
 
+// ── Gap 1: Global Job Moderation & Inspection ─────────────
+
+const getAllJobs = asyncHandler(async (req, res) => {
+  const result = await adminService.getAllJobs(req.query);
+  ApiResponse.ok('All platform jobs retrieved', result.docs, result.meta).send(res);
+});
+
+const getJobById = asyncHandler(async (req, res) => {
+  const result = await adminService.getJobById(req.params.id);
+  ApiResponse.ok('Job details for admin inspection retrieved', result).send(res);
+});
+
+// ── Gap 2: Admin Force Actions on Jobs ─────────────────────
+
+const updateJobStatus = asyncHandler(async (req, res) => {
+  const result = await adminService.updateJobStatus(req.params.id, req.user._id, req.body, req);
+  ApiResponse.ok('Job status updated by administration', result).send(res);
+});
+
+// ── Gap 3: Bulk Job Operations ─────────────────────────────
+
+const bulkJobAction = asyncHandler(async (req, res) => {
+  const result = await adminService.bulkJobAction(req.user._id, req.body, req);
+  ApiResponse.ok('Bulk job action executed successfully', result).send(res);
+});
+
+// ── Gap 4: Full Employer Directory ─────────────────────────
+
+const getAllEmployers = asyncHandler(async (req, res) => {
+  const result = await adminService.getAllEmployers(req.query);
+  ApiResponse.ok('All platform employers retrieved', result.docs, result.meta).send(res);
+});
+
+const getEmployerJobs = asyncHandler(async (req, res) => {
+  const result = await adminService.getEmployerJobs(req.params.id, req.query);
+  ApiResponse.ok('Employer jobs retrieved', result.docs, result.meta).send(res);
+});
+
+// ── Gap 5: Financial Transactions List & Discovery ─────────
+
+const getAllTransactions = asyncHandler(async (req, res) => {
+  const result = await adminService.getAllTransactions(req.query);
+  ApiResponse.ok('All financial transactions retrieved', result.docs, result.meta).send(res);
+});
+
+const getTransactionById = asyncHandler(async (req, res) => {
+  const result = await adminService.getTransactionById(req.params.id);
+  ApiResponse.ok('Transaction details retrieved', result).send(res);
+});
+
 module.exports = {
   getAllUsers,
   getPendingEmployers,
@@ -117,4 +167,12 @@ module.exports = {
   createPlan,
   updatePlan,
   deletePlan,
+  getAllJobs,
+  getJobById,
+  updateJobStatus,
+  bulkJobAction,
+  getAllEmployers,
+  getEmployerJobs,
+  getAllTransactions,
+  getTransactionById,
 };

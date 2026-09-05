@@ -69,6 +69,8 @@ const ApplicationStatus = Object.freeze({
 // ── Company Verification Status ───────────────────
 const VerificationStatus = Object.freeze({
   PENDING: 'pending',
+  UNDER_REVIEW: 'under_review',
+  INFORMATION_REQUIRED: 'information_required',
   APPROVED: 'approved',
   REJECTED: 'rejected',
 });
@@ -141,6 +143,9 @@ const NotificationType = Object.freeze({
   NEW_JOB_MATCH: 'new_job_match',
   INTERVIEW_INVITATION: 'interview_invitation',
   COMPANY_VERIFIED: 'company_verified',
+  COMPANY_PENDING_REVIEW: 'company_pending_review',
+  COMPANY_VERIFICATION_UPDATE: 'company_verification_update',
+  JOB_STATUS_CHANGE: 'job_status_change',
   SYSTEM_ANNOUNCEMENT: 'system_announcement',
 });
 

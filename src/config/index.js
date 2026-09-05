@@ -102,6 +102,11 @@ const config = {
   // ── Client URL ──────────────────────────────────
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
 
+  // ── SMS ─────────────────────────────────────────
+  sms: {
+    driver: process.env.SMS_DRIVER || (process.env.DOVESOFT_API_KEY ? 'dovesoft' : 'console'),
+  },
+
   // ── DoveSoft SMS Gateway ────────────────────────
   dovesoft: {
     apiKey: process.env.DOVESOFT_API_KEY || '',
