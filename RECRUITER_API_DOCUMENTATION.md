@@ -36,6 +36,11 @@
    - `POST /api/v1/companies/:id/team` (Add Recruiter / Team Member)
    - `PATCH /api/v1/companies/:id/team/:userId` (Update Team Member Permissions)
    - `DELETE /api/v1/companies/:id/team/:userId` (Remove Team Member)
+   - `POST /api/v1/companies/:id/documents` (Upload Verification Document)
+   - `GET /api/v1/companies/:id/documents` (Get Company Documents & Verification Checklist)
+   - `POST /api/v1/companies/phone/send-otp` (Send OTP to Company Business Phone)
+   - `POST /api/v1/companies/:id/phone/verify-otp` (Verify Company Phone OTP)
+   - [Employer Verification Lifecycle & Job Publishing Gate](#411-employer-verification-lifecycle--job-publishing-gate)
 5. [Job Postings Lifecycle Management](#5-job-postings-lifecycle-management)
    - `POST /api/v1/jobs` (Create Job Posting)
    - `GET /api/v1/jobs/employer/my-jobs` (List Recruiter's Jobs)
@@ -48,7 +53,11 @@
    - `GET /api/v1/applications/:id/fit` (AI Candidate Fit Score & Scorecard)
    - `PATCH /api/v1/applications/:id/status` (Update Stage & Status)
    - `POST /api/v1/applications/:id/notes` (Add Recruiter Note & Rating)
-   - `POST /api/v1/applications/:id/rate` (Rate Candidate)
+   - `GET /api/v1/applications/:id/notes` (List Candidate Application Notes)
+   - `PUT /api/v1/applications/:id/notes/:noteId` (Update Recruiter Note)
+   - `DELETE /api/v1/applications/:id/notes/:noteId` (Delete Recruiter Note)
+   - `POST /api/v1/applications/:id/rate` (Rate Candidate 1–5 Stars)
+   - `DELETE /api/v1/applications/:id/rate` (Clear Candidate Rating)
    - `POST /api/v1/applications/bulk-email` (Send Bulk Email to Applicants)
 7. [Talent Sourcing, Resume Database & AI Semantic Match](#7-talent-sourcing-resume-database--ai-semantic-match)
    - `GET /api/v1/search/resumes` (Advanced Boolean & Hybrid Resume Search)
@@ -515,11 +524,24 @@ Callbacks return redirect with access and refresh tokens.
 ## 4. Company Profile & Team Management
 
 ### 4.1 Register Company Profile
-Registers the employer's company. Requires country-specific legal registration fields validated by the country plugin.
+Registers the employer's company. Validates legal business registration fields, corporate contact phone, and duplicate business identifiers using the active Country Plugin.
 
 - **Method / URL**: `POST /api/v1/companies`
-- **Auth**: `Bearer <token>`
+- **Auth**: `Bearer <token>` (User must have verified their email address; `isEmailVerified: true`)
 - **Header**: `X-Country-Code: US` or `X-Country-Code: IN`
+
+#### Pre-requisites & Business Rules
+1. **Email Verification Gate**: The user account must be verified before registering a company. If unverified, returns `403 Forbidden` (`"Please verify your email address before registering a company"`).
+2. **Single Ownership**: A user account may only own one registered company profile.
+3. **Duplicate Prevention**:
+   - Company name is checked case-insensitively across all registered companies.
+   - Country Plugin enforces uniqueness on official tax/incorporation identifiers (`gstNumber`, `panNumber`, `cinNumber` for India; `einNumber` for US).
+4. **Corporate Phone Verification**:
+   - Phone format is strictly validated according to the country plugin (e.g. 10-digit Indian mobile `[6-9]XXXXXXXXX` or US 10-digit phone).
+   - In India, providing a business phone is mandatory.
+   - Employers can pass `phoneOtp` during registration if they previously triggered `POST /api/v1/companies/phone/send-otp` to verify immediately.
+5. **Review SLA Target**:
+   - Automatically computes `reviewDeadlineAt` based on the country plugin SLA (e.g., 48 hours for India, 24 hours for US).
 
 #### Request Body (US Company Example)
 ```json
@@ -530,6 +552,8 @@ Registers the employer's company. Requires country-specific legal registration f
   "size": "51-200",
   "description": "Leading cloud infrastructure and developer automation platform.",
   "countryCode": "US",
+  "phone": "+14155550199",
+  "contactName": "Sarah Jenkins",
   "address": {
     "street": "500 Howard Street, Suite 400",
     "city": "San Francisco",
@@ -555,7 +579,7 @@ Registers the employer's company. Requires country-specific legal registration f
 }
 ```
 
-#### Request Body (India Company Example)
+#### Request Body (India Company Example with Instant Phone OTP Verification)
 ```json
 {
   "name": "CloudScale India Pvt Ltd",
@@ -564,6 +588,9 @@ Registers the employer's company. Requires country-specific legal registration f
   "size": "51-200",
   "description": "India development center for CloudScale.",
   "countryCode": "IN",
+  "phone": "+919876543210",
+  "phoneOtp": "492810",
+  "contactName": "Rajesh Sharma",
   "address": {
     "street": "Outer Ring Road, Bellandur",
     "city": "Bengaluru",
@@ -593,14 +620,19 @@ Registers the employer's company. Requires country-specific legal registration f
   "message": "Company registered successfully. Pending business verification.",
   "data": {
     "_id": "66b44a20e7b231123a8b4588",
-    "name": "CloudScale Technologies Inc.",
+    "name": "CloudScale India Pvt Ltd",
     "owner": "66b44a10e7b231123a8b4567",
-    "website": "https://cloudscale.io",
+    "website": "https://cloudscale.in",
     "industry": "Software & Internet",
     "size": "51-200",
-    "description": "Leading cloud infrastructure and developer automation platform.",
-    "countryCode": "US",
+    "description": "India development center for CloudScale.",
+    "countryCode": "IN",
     "verificationStatus": "pending",
+    "phone": "+919876543210",
+    "contactName": "Rajesh Sharma",
+    "isPhoneVerified": true,
+    "verifiedPhone": true,
+    "reviewDeadlineAt": "2026-09-06T10:05:00.000Z",
     "teamMembers": [
       {
         "user": "66b44a10e7b231123a8b4567",
@@ -613,10 +645,10 @@ Registers the employer's company. Requires country-specific legal registration f
           "view_analytics",
           "manage_billing"
         ],
-        "joinedAt": "2026-08-21T10:05:00.000Z"
+        "joinedAt": "2026-09-04T10:05:00.000Z"
       }
     ],
-    "createdAt": "2026-08-21T10:05:00.000Z"
+    "createdAt": "2026-09-04T10:05:00.000Z"
   }
 }
 ```
@@ -785,10 +817,233 @@ Registers the employer's company. Requires country-specific legal registration f
 
 ---
 
+### 4.7 Upload Company Verification Document
+Uploads a business verification document (e.g., GST Certificate or PAN Card for India; EIN Letter or Articles of Incorporation for US). The document type is dynamically validated against the company's Country Plugin.
+
+- **Method / URL**: `POST /api/v1/companies/:id/documents`
+- **Auth**: `Bearer <token>` (Employer / Team member)
+- **Content-Type**: `multipart/form-data`
+
+#### Request Form Data
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `document` | `File` | **Yes** | File binary (PDF, Word doc/docx, JPG, PNG). Max 10 MB. |
+| `type` | `string` | **Yes** | Country-specific document type (e.g. `gst_certificate`, `pan_card`, `cin_certificate` for IN; `ein_letter`, `articles_of_incorporation`, `w9_form` for US) |
+| `label` | `string` | No | Human-readable document label |
+
+#### Response `(201 Created)`
+```json
+{
+  "success": true,
+  "statusCode": 201,
+  "message": "Company document uploaded successfully",
+  "data": {
+    "document": {
+      "type": "gst_certificate",
+      "label": "GST Registration Certificate",
+      "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
+      "publicId": "doc_gst_cert_123.pdf",
+      "uploadedAt": "2026-09-03T10:30:00.000Z"
+    },
+    "documents": [
+      {
+        "type": "gst_certificate",
+        "label": "GST Registration Certificate",
+        "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
+        "publicId": "doc_gst_cert_123.pdf",
+        "uploadedAt": "2026-09-03T10:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4.8 Get Company Documents & Verification Checklist
+Returns all uploaded documents and an automated verification checklist showing which required documents have been uploaded vs. are still pending, computed directly from the company's Country Plugin.
+
+- **Method / URL**: `GET /api/v1/companies/:id/documents`
+- **Auth**: `Bearer <token>` (Employer / Team member)
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Company documents and verification checklist retrieved",
+  "data": {
+    "companyId": "66b44a20e7b231123a8b4588",
+    "countryCode": "IN",
+    "countryName": "India",
+    "verificationStatus": "pending",
+    "isComplete": false,
+    "checklist": [
+      {
+        "type": "gst_certificate",
+        "label": "GST Registration Certificate",
+        "description": "Upload your GST registration certificate issued by the GST portal",
+        "required": true,
+        "isUploaded": true,
+        "uploadedDocument": {
+          "type": "gst_certificate",
+          "label": "GST Registration Certificate",
+          "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
+          "publicId": "doc_gst_cert_123.pdf",
+          "uploadedAt": "2026-09-03T10:30:00.000Z"
+        }
+      },
+      {
+        "type": "pan_card",
+        "label": "Company PAN Card",
+        "description": "Upload a copy of your company PAN card",
+        "required": true,
+        "isUploaded": false,
+        "uploadedDocument": null
+      },
+      {
+        "type": "cin_certificate",
+        "label": "Certificate of Incorporation (CIN)",
+        "description": "Upload your Certificate of Incorporation from MCA",
+        "required": false,
+        "isUploaded": false,
+        "uploadedDocument": null
+      }
+    ],
+    "documents": [
+      {
+        "type": "gst_certificate",
+        "label": "GST Registration Certificate",
+        "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
+        "publicId": "doc_gst_cert_123.pdf",
+        "uploadedAt": "2026-09-03T10:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4.9 Send Company Phone Verification OTP
+Dispatches a 6-digit one-time password (OTP) via SMS to the specified mobile number. Valid for 5 minutes.
+
+- **Method / URL**: `POST /api/v1/companies/phone/send-otp`
+- **Auth**: None / Public or Bearer
+- **Rate Limit**: 5 requests per 15 minutes per IP/number
+
+#### Request Body
+```json
+{
+  "phone": "+919876543210"
+}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `phone` | `string` | **Yes** | Mobile number in international E.164 or national format (e.g. `+919876543210` or `9876543210`) |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "OTP sent successfully to +919876543210",
+  "data": {
+    "phone": "+919876543210",
+    "expiresIn": "5 minutes"
+  }
+}
+```
+
+---
+
+### 4.10 Verify Company Phone OTP
+Verifies the SMS OTP and marks the company's phone number as verified (`isPhoneVerified: true`).
+
+- **Method / URL**: `POST /api/v1/companies/:id/phone/verify-otp`
+- **Auth**: `Bearer <token>` (Company owner or authorized team member)
+
+#### Request Body
+```json
+{
+  "phone": "+919876543210",
+  "otp": "492810"
+}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `phone` | `string` | **Yes** | Phone number the OTP was issued to |
+| `otp` | `string` | **Yes** | 6-digit numeric OTP code |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Company phone verified successfully",
+  "data": {
+    "_id": "66b44a20e7b231123a8b4588",
+    "name": "CloudScale India Pvt Ltd",
+    "phone": "+919876543210",
+    "isPhoneVerified": true,
+    "verifiedPhone": true,
+    "verificationStatus": "pending"
+  }
+}
+```
+
+---
+
+### 4.11 Employer Verification Lifecycle & Job Publishing Gate
+
+All employers must undergo compliance verification before their job listings appear publicly to job seekers.
+
+```
+ [Register Company]
+       │
+       ▼
+ ┌───────────┐         Admin requests docs          ┌────────────────────────┐
+ │  pending  │ ────────────────────────────────────►│  information_required  │
+ └─────┬─────┘                                      └───────────┬────────────┘
+       │                                                        │
+       │ Admin initiates                                        │ Employer uploads
+       │ secondary review                                       │ requested documents
+       ▼                                                        │
+ ┌──────────────┐                                               │
+ │ under_review │◄──────────────────────────────────────────────┘
+ └─────┬────────┘
+       │
+       ├─────────────────────────┐
+       ▼                         ▼
+ ┌───────────┐             ┌──────────┐
+ │ approved  │             │ rejected │
+ └───────────┘             └──────────┘
+ (Unlocks Active           (Requires support
+  Job Posting)              appeal)
+```
+
+#### Status Transitions & Action Guide:
+
+| Status | Recruiter UI Experience | Allowed Actions | Action to Complete |
+| :--- | :--- | :--- | :--- |
+| `pending` | Banner: *"Company profile pending verification. Review SLA: ~24-48 hours."* | Create draft jobs, configure hiring pipelines, invite team members. | Wait for admin review or upload additional compliance documents. |
+| `under_review` | Banner: *"Your verification is under detailed compliance review."* | Create draft jobs, manage team. | Our compliance team is verifying your business documents. |
+| `information_required` | Warning Banner: *"Action Required: Additional documentation requested by compliance team."* Displays `infoRequestedNotes`. | Upload missing documents via `POST /api/v1/companies/:id/documents`. | Review feedback notes and upload the requested certificates/licenses. |
+| `approved` | Success Badge: *"Verified Employer"* | Full platform access: publish live jobs, search talent database, view candidate contact details. | Ready to hire. |
+| `rejected` | Alert: *"Verification failed. Reason: [Notes]"* | View account settings; job publishing locked. | Contact compliance support with proof of business ownership. |
+
+> **Job Publishing Protection**:
+> When a company is in `pending`, `under_review`, or `information_required` status, calling `POST /api/v1/jobs` with `status: "active"` or updating an existing draft to `"active"` will return `403 Forbidden` (`"Your company profile must be verified before you can publish active job postings"`). You can draft jobs anytime, which can be published with 1 click once approved.
+
+---
+
 ## 5. Job Postings Lifecycle Management
 
 ### 5.1 Create Detailed Job Posting
-Creates a new job listing for the employer's company. Status can start as `"draft"` or `"active"`.
+Creates a new job listing for the employer's company. Status can start as `"draft"` or `"active"` (active publishing requires an approved company profile).
 
 - **Method / URL**: `POST /api/v1/jobs`
 - **Auth**: `Bearer <token>` (Requires role `employer` & `manage_jobs` permission)
@@ -1261,11 +1516,124 @@ Add internal comments, interview feedback, and score ratings visible only to tea
 
 ---
 
-### 6.5 Rate Candidate
-Quickly set or update candidate star score (1-5).
+### 6.5 List Candidate Application Notes
+Retrieve all internal notes and interview evaluations associated with a candidate application.
+- **Privacy Enforcement**: Private notes (`isPrivate: true`) are **only returned to the user who authored them**. Other team members will only receive non-private notes.
+- **Sorting**: Returned in reverse chronological order (newest first).
+
+- **Method / URL**: `GET /api/v1/applications/:id/notes`
+- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the application (24-char hex) |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Candidate notes retrieved successfully",
+  "data": [
+    {
+      "_id": "66b44a90e7b231123a8b4677",
+      "application": "66b44a60e7b231123a8b4633",
+      "author": {
+        "_id": "66b44a10e7b231123a8b4567",
+        "firstName": "Sarah",
+        "lastName": "Jenkins",
+        "email": "sarah.jenkins@cloudscale.io",
+        "role": "employer"
+      },
+      "content": "Superb coding interview. Demonstrated clean architecture and deep knowledge of event-driven concurrency.",
+      "rating": 5,
+      "isPrivate": false,
+      "createdAt": "2026-08-21T11:00:00.000Z",
+      "updatedAt": "2026-08-21T11:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 6.6 Update Candidate Note
+Update the content, rating, or privacy status of an existing candidate note.
+- **Authorization**: Only the **original author** of the note can update it (`403 Forbidden` if attempted by another team member).
+- **Application Rating Sync**: If `rating` is included, the top-level application rating is automatically updated to stay in sync. Pass `rating: null` to unset the rating.
+
+- **Method / URL**: `PUT /api/v1/applications/:id/notes/:noteId`
+- **Auth**: `Bearer <token>` (Author only)
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | Application ObjectId |
+| `noteId` | `string` | **Yes** | Note ObjectId |
+
+#### Request Body *(At least one field required)*
+```json
+{
+  "content": "Updated: Completed technical debrief. Highly recommended for offer.",
+  "rating": 5,
+  "isPrivate": true
+}
+```
+
+| Field | Type | Required | Constraints |
+| :--- | :--- | :--- | :--- |
+| `content` | `string` | No | 1–2,000 characters |
+| `rating` | `number \| null` | No | Integer `1`–`5`, or `null` to clear |
+| `isPrivate` | `boolean` | No | `true` or `false` |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Candidate note updated successfully",
+  "data": {
+    "_id": "66b44a90e7b231123a8b4677",
+    "application": "66b44a60e7b231123a8b4633",
+    "author": "66b44a10e7b231123a8b4567",
+    "content": "Updated: Completed technical debrief. Highly recommended for offer.",
+    "rating": 5,
+    "isPrivate": true,
+    "createdAt": "2026-08-21T11:00:00.000Z",
+    "updatedAt": "2026-08-21T11:30:00.000Z"
+  }
+}
+```
+
+---
+
+### 6.7 Delete Candidate Note
+Permanently delete an internal candidate note.
+- **Authorization**: Only the **original author** of the note can delete it (`403 Forbidden` otherwise).
+
+- **Method / URL**: `DELETE /api/v1/applications/:id/notes/:noteId`
+- **Auth**: `Bearer <token>` (Author only)
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | Application ObjectId |
+| `noteId` | `string` | **Yes** | Note ObjectId |
+
+#### Response `(204 No Content)`
+```
+HTTP/1.1 204 No Content
+```
+*(No response body returned on successful deletion)*
+
+---
+
+### 6.8 Rate Candidate (1–5 Stars)
+Quickly set or update the candidate's star score (1–5) on the application.
 
 - **Method / URL**: `POST /api/v1/applications/:id/rate`
-- **Auth**: `Bearer <token>`
+- **Auth**: `Bearer <token>` (Employer or Admin)
 
 #### Request Body
 ```json
@@ -1273,6 +1641,10 @@ Quickly set or update candidate star score (1-5).
   "rating": 5
 }
 ```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `rating` | `integer` | **Yes** | Candidate star score between `1` and `5` |
 
 #### Response `(200 OK)`
 ```json
@@ -1282,14 +1654,49 @@ Quickly set or update candidate star score (1-5).
   "message": "Candidate rated successfully",
   "data": {
     "_id": "66b44a60e7b231123a8b4633",
-    "rating": 5
+    "job": "66b44a50e7b231123a8b4610",
+    "applicant": "66b44a70e7b231123a8b4644",
+    "status": "screening",
+    "pipelineStage": "Technical Interview",
+    "rating": 5,
+    "appliedAt": "2026-08-21T09:15:00.000Z",
+    "createdAt": "2026-08-21T09:15:00.000Z",
+    "updatedAt": "2026-08-21T11:45:00.000Z"
   }
 }
 ```
 
 ---
 
-### 6.6 Send Bulk Email to Applicants
+### 6.9 Clear Candidate Rating
+Resets the candidate's star rating to `null`.
+
+- **Method / URL**: `DELETE /api/v1/applications/:id/rate`
+- **Auth**: `Bearer <token>` (Employer or Admin)
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Candidate rating cleared successfully",
+  "data": {
+    "_id": "66b44a60e7b231123a8b4633",
+    "job": "66b44a50e7b231123a8b4610",
+    "applicant": "66b44a70e7b231123a8b4644",
+    "status": "screening",
+    "pipelineStage": "Technical Interview",
+    "rating": null,
+    "appliedAt": "2026-08-21T09:15:00.000Z",
+    "createdAt": "2026-08-21T09:15:00.000Z",
+    "updatedAt": "2026-08-21T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 6.10 Send Bulk Email to Applicants
 Dispatch template-based or customized emails with dynamic placeholders (`{{candidateName}}`, `{{jobTitle}}`) to multiple candidates simultaneously.
 
 - **Method / URL**: `POST /api/v1/applications/bulk-email`
@@ -2271,13 +2678,21 @@ export interface Company {
   _id: string;
   name: string;
   owner: string;
+  phone?: string;
+  contactName?: string;
+  isPhoneVerified: boolean;
+  verifiedPhone: boolean;
+  reviewDeadlineAt?: string | null;
+  infoRequestedAt?: string | null;
+  infoRequestedNotes?: string;
   logoUrl?: string;
   website?: string;
   industry?: string;
   size?: string;
   description?: string;
   countryCode: string;
-  verificationStatus: 'pending' | 'approved' | 'rejected';
+  verificationStatus: 'pending' | 'under_review' | 'information_required' | 'approved' | 'rejected';
+  verificationNotes?: string;
   address?: {
     street?: string;
     city: string;
@@ -2411,6 +2826,126 @@ export interface Pipeline {
   stages: PipelineStage[];
   isDefault: boolean;
 }
+
+// ── Candidate Notes & Ratings ────────────────────────────────────
+export interface CandidateNote {
+  _id: string;
+  application: string;
+  author: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  } | string;
+  content: string;
+  rating?: number | null;
+  isPrivate: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNotePayload {
+  content: string;
+  rating?: number | null;
+  isPrivate?: boolean;
+}
+
+export interface UpdateNotePayload {
+  content?: string;
+  rating?: number | null;
+  isPrivate?: boolean;
+}
+
+export interface RateCandidatePayload {
+  rating: number; // 1-5
+}
+
+export interface BulkEmailPayload {
+  applicationIds: string[];
+  subject: string;
+  body: string;
+}
+
+// ── Company Compliance & Documents ───────────────────────────────
+export interface CompanyDocument {
+  type: string;
+  label: string;
+  fileUrl: string;
+  publicId: string;
+  uploadedAt: string;
+}
+
+export interface VerificationChecklistItem {
+  type: string;
+  label: string;
+  description: string;
+  required: boolean;
+  isUploaded: boolean;
+  uploadedDocument: CompanyDocument | null;
+}
+
+export interface CompanyVerificationChecklist {
+  companyId: string;
+  countryCode: string;
+  countryName: string;
+  verificationStatus: 'pending' | 'under_review' | 'information_required' | 'approved' | 'rejected';
+  isComplete: boolean;
+  checklist: VerificationChecklistItem[];
+  documents: CompanyDocument[];
+}
+
+// ── Analytics & Dashboards ───────────────────────────────────────
+export interface JobAnalytics {
+  jobId: string;
+  title: string;
+  views: number;
+  clicks: number;
+  applications: number;
+  conversionRate: string;
+  clickThroughRate: string;
+  isSponsored: boolean;
+  sponsorBudget?: {
+    dailyBudget: number;
+    totalBudget: number;
+    spent: number;
+    currency: string;
+    startDate: string;
+    endDate: string;
+  };
+}
+
+export interface ApplicantDemographics {
+  totalApplicants: number;
+  locationBreakdown: Record<string, number>;
+  topSkills: Record<string, number>;
+}
+
+export interface CompanyOverviewMetrics {
+  companyId: string;
+  name: string;
+  totalApplications: number;
+  jobStats: Array<{
+    _id: string;
+    count: number;
+    totalViews: number;
+    totalClicks: number;
+  }>;
+}
+
+// ── Notifications ────────────────────────────────────────────────
+export interface RecruiterNotification {
+  _id: string;
+  user: string;
+  type: string;
+  title: string;
+  message: string;
+  relatedModel?: string;
+  relatedId?: string;
+  actionUrl?: string;
+  isRead: boolean;
+  createdAt: string;
+}
 ```
 
 ---
@@ -2518,6 +3053,89 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+```
+
+### Practical Usage Examples with Axios
+
+```typescript
+import { apiClient } from './apiClient';
+
+// ── 1. Company Compliance & Phone Verification ───────
+
+// Send OTP to company phone
+await apiClient.post('/companies/phone/send-otp', {
+  phone: '+919876543210',
+});
+
+// Verify OTP on registered company
+await apiClient.post(`/companies/${companyId}/phone/verify-otp`, {
+  phone: '+919876543210',
+  otp: '492810',
+});
+
+// Fetch verification document checklist
+const { data: checklistData } = await apiClient.get(`/companies/${companyId}/documents`);
+
+// Upload a compliance document (multipart/form-data)
+const formData = new FormData();
+formData.append('type', 'gst_certificate');
+formData.append('label', 'GST Registration Certificate');
+formData.append('document', fileBlob, 'gst_certificate.pdf');
+
+await apiClient.post(`/companies/${companyId}/documents`, formData, {
+  headers: { 'Content-Type': 'multipart/form-data' },
+});
+
+// ── 2. Candidate Notes & Star Ratings ────────────────
+
+// Add note with star rating
+const { data: newNote } = await apiClient.post(`/applications/${applicationId}/notes`, {
+  content: 'Strong cultural fit and system design knowledge.',
+  rating: 5,
+  isPrivate: false,
+});
+
+// List all notes for candidate (private notes filtered automatically by server)
+const { data: notes } = await apiClient.get(`/applications/${applicationId}/notes`);
+
+// Update note
+await apiClient.put(`/applications/${applicationId}/notes/${noteId}`, {
+  content: 'Updated: Excellent technical interview, strong hire.',
+  rating: 5,
+  isPrivate: true,
+});
+
+// Delete note
+await apiClient.delete(`/applications/${applicationId}/notes/${noteId}`);
+
+// Rate candidate directly
+await apiClient.post(`/applications/${applicationId}/rate`, {
+  rating: 4,
+});
+
+// Clear candidate rating
+await apiClient.delete(`/applications/${applicationId}/rate`);
+
+// ── 3. Recruitment Analytics & ROI ───────────────────
+
+// Company-wide dashboard
+const { data: companyOverview } = await apiClient.get('/analytics/company/overview');
+
+// Job-specific funnel & conversion rates
+const { data: jobStats } = await apiClient.get(`/analytics/jobs/${jobId}`);
+
+// Applicant demographics and top skills
+const { data: demographics } = await apiClient.get(`/analytics/jobs/${jobId}/demographics`);
+
+// ── 4. Notifications ─────────────────────────────────
+
+// List unread notifications
+const { data: notifications } = await apiClient.get('/notifications', {
+  params: { page: 1, limit: 20 },
+});
+
+// Mark all as read
+await apiClient.patch('/notifications/read-all');
 ```
 
 ---

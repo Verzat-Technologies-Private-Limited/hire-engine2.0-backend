@@ -66,6 +66,16 @@ const verifyOtpSchema = {
   }),
 };
 
+const changePasswordSchema = {
+  body: Joi.object({
+    currentPassword: Joi.string().required(),
+    newPassword: Joi.string().min(8).max(128).required()
+      .messages({ 'string.min': 'Password must be at least 8 characters' }),
+    confirmPassword: Joi.string().valid(Joi.ref('newPassword')).required()
+      .messages({ 'any.only': 'Passwords do not match' }),
+  }),
+};
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -75,4 +85,5 @@ module.exports = {
   verifyEmailSchema,
   sendOtpSchema,
   verifyOtpSchema,
+  changePasswordSchema,
 };

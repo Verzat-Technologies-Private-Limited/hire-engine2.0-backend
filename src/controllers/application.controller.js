@@ -68,10 +68,26 @@ const getFitAnalysis = asyncHandler(async (req, res) => {
   ApiResponse.ok('Candidate fit analysis calculated successfully', result).send(res);
 });
 
+const getApplicationById = asyncHandler(async (req, res) => {
+  const application = await applicationService.getApplicationById(req.params.id, req.user);
+  ApiResponse.ok('Application retrieved successfully', application).send(res);
+});
+
+const withdraw = asyncHandler(async (req, res) => {
+  const application = await applicationService.withdrawApplication(
+    req.params.id,
+    req.user._id,
+    req.body
+  );
+  ApiResponse.ok('Application withdrawn successfully', application).send(res);
+});
+
 module.exports = {
   apply,
   getSeekerApplications,
   getJobApplications,
+  getApplicationById,
+  withdraw,
   getFitAnalysis,
   updateStatus,
   addNote,

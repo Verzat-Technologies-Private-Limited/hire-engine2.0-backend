@@ -116,14 +116,16 @@ async function createJob(userId, jobData) {
 
 /**
  * Get job details by ID.
+ * Strips screening question ideal answers unless requester is admin or company team member.
  * @param {string} jobId
  * @param {boolean} [incrementViews=false]
+ * @param {object|null} [requester=null]
  * @returns {Promise<object>}
  */
-async function getJobById(jobId, incrementViews = false) {
+async function getJobById(jobId, incrementViews = false, requester = null) {
   const job = await Job.findById(jobId).populate(
     'company',
-    'name logoUrl industry size website countryCode verificationStatus'
+    'name logoUrl industry size website countryCode verificationStatus owner teamMembers'
   );
   if (!job) {
     throw ApiError.notFound('Job posting not found');
@@ -133,7 +135,29 @@ async function getJobById(jobId, incrementViews = false) {
     Job.incrementViews(jobId).catch(() => {});
   }
 
-  return job.toJSON();
+  const jobObj = job.toJSON();
+
+  // Check if requester is authorized to view ideal answers
+  let canViewIdealAnswers = false;
+  if (requester) {
+    if (requester.role === 'admin') {
+      canViewIdealAnswers = true;
+    } else if (requester.role === 'employer' && job.company) {
+      const company = await Company.findById(job.company._id || job.company);
+      if (company && company.isTeamMember(requester._id)) {
+        canViewIdealAnswers = true;
+      }
+    }
+  }
+
+  if (!canViewIdealAnswers && Array.isArray(jobObj.screeningQuestions)) {
+    jobObj.screeningQuestions = jobObj.screeningQuestions.map((q) => {
+      const { idealAnswer, ...sanitized } = q;
+      return sanitized;
+    });
+  }
+
+  return jobObj;
 }
 
 /**

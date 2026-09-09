@@ -7,6 +7,8 @@ const { applicationLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
   applyJobSchema,
   updateApplicationStatusSchema,
+  withdrawApplicationSchema,
+  getApplicationByIdSchema,
   addNoteSchema,
   updateNoteSchema,
   noteParamsSchema,
@@ -21,6 +23,10 @@ router.use(authenticate);
 // Job seeker routes
 router.post('/jobs/:jobId/apply', authorize('jobseeker'), applicationLimiter, validate(applyJobSchema), applicationController.apply);
 router.get('/me', authorize('jobseeker'), applicationController.getSeekerApplications);
+router.post('/:id/withdraw', authorize('jobseeker'), validate(withdrawApplicationSchema), applicationController.withdraw);
+
+// Single application details (Role-aware: jobseeker sees own sanitized application; employer/admin sees applicant with ATS notes)
+router.get('/:id', validate(getApplicationByIdSchema), applicationController.getApplicationById);
 
 // Employer ATS routes
 router.get('/jobs/:jobId/applications', authorize('employer', 'admin'), applicationController.getJobApplications);

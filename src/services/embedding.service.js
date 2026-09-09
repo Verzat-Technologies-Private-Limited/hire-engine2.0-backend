@@ -250,7 +250,7 @@ async function semanticSearchResumes(queryText, filters = {}, pagination = {}) {
     pipeline.push({ $match: matchStage });
   }
 
-  // Populate user info
+  // Populate user info & filter only active public profiles
   pipeline.push(
     {
       $lookup: {
@@ -260,7 +260,14 @@ async function semanticSearchResumes(queryText, filters = {}, pagination = {}) {
         as: 'user',
       },
     },
-    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } }
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        'user.profileVisibility': 'public',
+        'user.status': 'active',
+        'user.deletionRequestedAt': null,
+      },
+    }
   );
 
   // Exclude embedding vector from results (large payload)
@@ -279,7 +286,7 @@ async function semanticSearchResumes(queryText, filters = {}, pagination = {}) {
 
   const docs = await Resume.aggregate(pipeline);
 
-  // For total count, run a simpler count pipeline
+  // For total count, run a simpler count pipeline that respects the user visibility filter
   const countPipeline = [
     {
       $vectorSearch: {
@@ -294,7 +301,25 @@ async function semanticSearchResumes(queryText, filters = {}, pagination = {}) {
   if (Object.keys(matchStage).length > 0) {
     countPipeline.push({ $match: matchStage });
   }
-  countPipeline.push({ $count: 'total' });
+  countPipeline.push(
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'user',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        'user.profileVisibility': 'public',
+        'user.status': 'active',
+        'user.deletionRequestedAt': null,
+      },
+    },
+    { $count: 'total' }
+  );
 
   const countResult = await Resume.aggregate(countPipeline);
   const totalDocs = countResult.length > 0 ? countResult[0].total : 0;
@@ -399,11 +424,12 @@ async function semanticSearchJobs(queryText, filters = {}, pagination = {}) {
     { $unwind: { path: '$company', preserveNullAndEmptyArrays: true } }
   );
 
-  // Exclude embedding vector from results
+  // Exclude embedding vector and screening question ideal answers from results
   pipeline.push({
     $project: {
       'embedding.vector': 0,
       'company.__v': 0,
+      'screeningQuestions.idealAnswer': 0,
     },
   });
 
@@ -478,7 +504,14 @@ async function findSimilarResumes(resumeId, limit = 10) {
         as: 'user',
       },
     },
-    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        'user.profileVisibility': 'public',
+        'user.status': 'active',
+        'user.deletionRequestedAt': null,
+      },
+    },
     {
       $project: {
         'embedding.vector': 0,
@@ -528,6 +561,7 @@ async function findSimilarJobs(jobId, limit = 10) {
     {
       $project: {
         'embedding.vector': 0,
+        'screeningQuestions.idealAnswer': 0,
       },
     },
   ];
@@ -581,7 +615,14 @@ async function rankResumesByJob(jobId, pagination = {}) {
         as: 'user',
       },
     },
-    { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        'user.profileVisibility': 'public',
+        'user.status': 'active',
+        'user.deletionRequestedAt': null,
+      },
+    },
     {
       $project: {
         'embedding.vector': 0,
@@ -605,6 +646,22 @@ async function rankResumesByJob(jobId, pagination = {}) {
         queryVector,
         numCandidates,
         limit: numCandidates,
+      },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'user',
+        foreignField: '_id',
+        as: 'user',
+      },
+    },
+    { $unwind: { path: '$user', preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        'user.profileVisibility': 'public',
+        'user.status': 'active',
+        'user.deletionRequestedAt': null,
       },
     },
     { $count: 'total' },

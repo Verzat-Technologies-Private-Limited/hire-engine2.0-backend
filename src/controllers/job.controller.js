@@ -8,7 +8,7 @@ const createJob = asyncHandler(async (req, res) => {
 });
 
 const getJob = asyncHandler(async (req, res) => {
-  const job = await jobService.getJobById(req.params.id, true);
+  const job = await jobService.getJobById(req.params.id, true, req.user);
   ApiResponse.ok('Job details retrieved successfully', job).send(res);
 });
 

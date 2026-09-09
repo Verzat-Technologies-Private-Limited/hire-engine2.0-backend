@@ -1,7 +1,9 @@
 const Job = require('../models/Job');
 const Resume = require('../models/Resume');
+const User = require('../models/User');
 const SavedSearch = require('../models/SavedSearch');
 const ApiError = require('../utils/ApiError');
+const { ProfileVisibility, UserStatus } = require('../utils/constants');
 const { paginateQuery } = require('../utils/pagination');
 const {
   semanticSearchJobs,
@@ -243,6 +245,7 @@ async function _keywordSearchJobs(searchParams) {
 
   return paginateQuery(Job, filter, searchParams, {
     populate: 'company',
+    select: '-screeningQuestions.idealAnswer',
     sort: sortOption,
   });
 }
@@ -342,7 +345,19 @@ async function searchResumes(searchParams) {
 async function _keywordSearchResumes(searchParams) {
   const { q, skills, location, experienceMin, experienceMax, education, sort } = searchParams;
 
-  const filter = {};
+  // Filter only active candidates with public profile visibility who haven't requested deletion
+  const publicUsers = await User.find({
+    profileVisibility: ProfileVisibility.PUBLIC,
+    status: UserStatus.ACTIVE,
+    deletionRequestedAt: null,
+  })
+    .select('_id')
+    .lean();
+  const publicUserIds = publicUsers.map((u) => u._id);
+
+  const filter = {
+    user: { $in: publicUserIds },
+  };
 
   // Boolean search support on resume text/skills
   if (q) {

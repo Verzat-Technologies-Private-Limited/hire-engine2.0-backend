@@ -35,14 +35,17 @@ Every API endpoint returns JSON matching the standard wrapper:
    - [1.2 User Login](#12-user-login)
    - [1.3 Refresh Access Token](#13-refresh-access-token)
    - [1.4 Mobile SMS OTP Authentication](#14-mobile-sms-otp-authentication)
-   - [1.5 Upload & Auto-Parse Resume](#15-upload--auto-parse-resume)
-   - [1.6 Get & Update Candidate Profile](#16-get--update-candidate-profile)
-   - [1.7 Toggle Profile Visibility](#17-toggle-profile-visibility)
-   - [1.8 Job Search & Filtering](#18-job-search--filtering)
-   - [1.9 Apply to a Job ("Easy Apply")](#19-apply-to-a-job-easy-apply)
-   - [1.10 View Centralized Application History](#110-view-centralized-application-history)
-   - [1.11 Save Search Criteria & Alerts](#111-save-search-criteria--alerts)
-   - [1.12 GDPR Account Deletion](#112-gdpr-account-deletion)
+   - [1.5 Change Account Password](#15-change-account-password)
+   - [1.6 Upload & Auto-Parse Resume](#16-upload--auto-parse-resume)
+   - [1.7 Get & Update Candidate Profile](#17-get--update-candidate-profile)
+   - [1.8 Toggle Profile Visibility](#18-toggle-profile-visibility)
+   - [1.9 Job Search & Filtering](#19-job-search--filtering)
+   - [1.10 Apply to a Job ("Easy Apply")](#110-apply-to-a-job-easy-apply)
+   - [1.11 View Centralized Application History](#111-view-centralized-application-history)
+   - [1.12 View Single Application Detail](#112-view-single-application-detail)
+   - [1.13 Withdraw Job Application](#113-withdraw-job-application)
+   - [1.14 Save Search Criteria & Alerts](#114-save-search-criteria--alerts)
+   - [1.15 GDPR Account Deletion](#115-gdpr-account-deletion)
 2. [Recruiter / Employer APIs](#2-recruiter--employer-apis)
    - [2.1 Register Company (Country Plugin Validated)](#21-register-company-country-plugin-validated)
    - [2.2 Add Sub-Account Team Member](#22-add-sub-account-team-member)
@@ -229,7 +232,31 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.5 Upload & Auto-Parse Resume
+### 1.5 Change Account Password
+- **Endpoint**: `POST /api/v1/auth/change-password`
+- **Auth**: Bearer Token (Authenticated user)
+- **Rate Limit**: Auth limiter (10 req/min)
+- **Request Body**:
+```json
+{
+  "currentPassword": "OldPassword123!",
+  "newPassword": "NewSecurePassword2026!",
+  "confirmPassword": "NewSecurePassword2026!"
+}
+```
+- **Response** `(200 OK)`:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Password changed successfully",
+  "data": null
+}
+```
+
+---
+
+### 1.6 Upload & Auto-Parse Resume
 - **Endpoint**: `POST /api/v1/resumes/upload`
 - **Auth**: Bearer Token (`jobseeker` / logged-in user)
 - **Content-Type**: `multipart/form-data`
@@ -296,7 +323,7 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.6 Get & Update Candidate Profile
+### 1.7 Get & Update Candidate Profile
 - **Get Profile Endpoint**: `GET /api/v1/users/me`
 - **Auth**: Bearer Token
 - **Response** `(200 OK)`:
@@ -344,7 +371,7 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.7 Toggle Profile Visibility
+### 1.8 Toggle Profile Visibility
 - **Endpoint**: `PATCH /api/v1/users/me/visibility`
 - **Auth**: Bearer Token (`jobseeker`)
 - **Request Body**:
@@ -378,7 +405,7 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.8 Job Search & Filtering
+### 1.9 Job Search & Filtering
 - **Endpoint**: `GET /api/v1/search/jobs`
 - **Auth**: None / Optional
 - **Rate Limit**: Search limiter
@@ -453,7 +480,7 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.9 Apply to a Job ("Easy Apply")
+### 1.10 Apply to a Job ("Easy Apply")
 - **Endpoint**: `POST /api/v1/applications/jobs/:jobId/apply`
 - **Auth**: Bearer Token (`jobseeker`)
 - **Rate Limit**: Application limiter
@@ -508,7 +535,7 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.10 View Centralized Application History
+### 1.11 View Centralized Application History
 - **Endpoint**: `GET /api/v1/applications/me`
 - **Auth**: Bearer Token (`jobseeker`)
 - **Query Parameters**: `status=submitted&page=1&limit=10`
@@ -560,7 +587,104 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.11 Save Search Criteria & Alerts
+### 1.12 View Single Application Detail
+- **Endpoint**: `GET /api/v1/applications/:id`
+- **Auth**: Bearer Token (`jobseeker`, `employer`, `admin`)
+- **Description**: Role-aware single application retrieval. Job seekers see their application details with candidate-safe status history (internal recruiter notes and recruiter IDs are redacted, recruiter rating is removed). Employers/admins see full candidate details and internal ATS notes.
+- **Response** `(200 OK)`:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Application retrieved successfully",
+  "data": {
+    "_id": "66b44e50e7b231123a8b4571",
+    "job": {
+      "_id": "66b44c30e7b231123a8b4569",
+      "title": "Senior Backend Developer (Node.js)",
+      "company": {
+        "_id": "66b44d40e7b231123a8b4570",
+        "name": "Cyberdyne Systems Inc",
+        "city": "San Francisco",
+        "state": "CA",
+        "country": "United States"
+      }
+    },
+    "applicant": {
+      "_id": "66b44a10e7b231123a8b4567",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com"
+    },
+    "resume": {
+      "_id": "66b44b20e7b231123a8b4568",
+      "title": "Software Engineer Resume 2026",
+      "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v12345/resume_john_123.pdf",
+      "fileType": "pdf"
+    },
+    "coverLetter": "Extremely excited about this role...",
+    "screeningAnswers": [
+      {
+        "questionIndex": 0,
+        "question": "Do you have 5+ years in Python?",
+        "answer": "Yes"
+      }
+    ],
+    "status": "submitted",
+    "pipelineStage": "New",
+    "statusHistory": [
+      {
+        "status": "submitted",
+        "changedAt": "2026-08-08T12:00:00.000Z"
+      }
+    ],
+    "isEasyApply": true,
+    "appliedAt": "2026-08-08T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 1.13 Withdraw Job Application
+- **Endpoint**: `POST /api/v1/applications/:id/withdraw`
+- **Auth**: Bearer Token (`jobseeker`)
+- **Description**: Allows a candidate to withdraw an active application (e.g. accepted another offer). Status is transitioned to `"withdrawn"`, job `applicationCount` is decremented, and the employer is automatically notified. Finalized applications (`hired` or `rejected`) cannot be withdrawn.
+- **Request Body** (Optional):
+```json
+{
+  "reason": "Accepted another offer"
+}
+```
+- **Response** `(200 OK)`:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Application withdrawn successfully",
+  "data": {
+    "_id": "66b44e50e7b231123a8b4571",
+    "job": "66b44c30e7b231123a8b4569",
+    "applicant": "66b44a10e7b231123a8b4567",
+    "status": "withdrawn",
+    "statusHistory": [
+      {
+        "status": "submitted",
+        "changedAt": "2026-08-08T12:00:00.000Z"
+      },
+      {
+        "status": "withdrawn",
+        "changedAt": "2026-08-09T14:30:00.000Z"
+      }
+    ],
+    "appliedAt": "2026-08-08T12:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 1.14 Save Search Criteria & Alerts
 - **Create Saved Search**: `POST /api/v1/search/saved`
 - **Auth**: Bearer Token (`jobseeker`)
 - **Request Body**:
@@ -607,7 +731,7 @@ Every API endpoint returns JSON matching the standard wrapper:
 
 ---
 
-### 1.12 GDPR Account Deletion
+### 1.15 GDPR Account Deletion
 - **Endpoint**: `DELETE /api/v1/users/me`
 - **Auth**: Bearer Token
 - **Response** `(200 OK)`:

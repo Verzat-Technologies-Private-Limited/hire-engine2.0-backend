@@ -59,6 +59,12 @@ const verifyOtp = asyncHandler(async (req, res) => {
   ApiResponse.ok(result.message, result).send(res);
 });
 
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  await authService.changePassword(req.user._id, currentPassword, newPassword);
+  ApiResponse.ok('Password changed successfully').send(res);
+});
+
 module.exports = {
   register,
   login,
@@ -70,4 +76,5 @@ module.exports = {
   oauthCallback,
   sendOtp,
   verifyOtp,
+  changePassword,
 };

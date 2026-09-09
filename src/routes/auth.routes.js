@@ -2,6 +2,7 @@ const express = require('express');
 const passport = require('passport');
 const authController = require('../controllers/auth.controller');
 const validate = require('../middlewares/validate.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
 const { authLimiter } = require('../middlewares/rateLimiter.middleware');
 const {
   registerSchema,
@@ -12,6 +13,7 @@ const {
   verifyEmailSchema,
   sendOtpSchema,
   verifyOtpSchema,
+  changePasswordSchema,
 } = require('../validators/auth.validator');
 
 const router = express.Router();
@@ -21,6 +23,15 @@ router.post('/register', authLimiter, validate(registerSchema), authController.r
 router.post('/login', authLimiter, validate(loginSchema), authController.login);
 router.post('/refresh-token', validate(refreshTokenSchema), authController.refreshToken);
 router.post('/logout', authController.logout);
+
+// Authenticated password change
+router.post(
+  '/change-password',
+  authenticate,
+  authLimiter,
+  validate(changePasswordSchema),
+  authController.changePassword
+);
 
 // Password recovery & Email verification
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), authController.forgotPassword);

@@ -413,10 +413,137 @@ async function getApplicationFitAnalysis(applicationId, employerId) {
   };
 }
 
+/**
+ * Get single application by ID with role-based field sanitization.
+ * Job seekers see their application details with sanitized statusHistory (no internal recruiter notes).
+ * Employers/admins see full application details including notes and rating.
+ * @param {string} applicationId
+ * @param {object} user - Authenticated user { _id, role }
+ * @returns {Promise<object>}
+ */
+async function getApplicationById(applicationId, user) {
+  const application = await Application.findById(applicationId)
+    .populate({
+      path: 'job',
+      populate: { path: 'company', select: 'name logoUrl city state country website' },
+    })
+    .populate('resume', 'title fileUrl fileType fileSize createdAt parsedData')
+    .populate('applicant', 'firstName lastName email avatar headline phone');
+
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  // If candidate
+  if (user.role === 'jobseeker') {
+    if (application.applicant._id.toString() !== user._id.toString()) {
+      throw ApiError.forbidden('You do not have permission to view this application');
+    }
+
+    const appObj = application.toJSON();
+    // Candidate-safe status history: show status and date, strip internal notes/recruiter IDs
+    if (Array.isArray(appObj.statusHistory)) {
+      appObj.statusHistory = appObj.statusHistory.map((h) => ({
+        status: h.status,
+        changedAt: h.changedAt,
+      }));
+    }
+    delete appObj.rating;
+
+    return appObj;
+  }
+
+  // If employer or admin
+  if (user.role === 'employer') {
+    const company = await Company.findById(application.job.company._id || application.job.company);
+    if (!company || !company.isTeamMember(user._id)) {
+      throw ApiError.forbidden('You do not have permission to view this application');
+    }
+  }
+
+  return application.toJSON();
+}
+
+/**
+ * Withdraw an application by job seeker.
+ * @param {string} applicationId
+ * @param {string} candidateId
+ * @param {object} [options]
+ * @param {string} [options.reason]
+ * @returns {Promise<object>}
+ */
+async function withdrawApplication(applicationId, candidateId, options = {}) {
+  const { reason } = options;
+
+  const application = await Application.findById(applicationId);
+  if (!application) {
+    throw ApiError.notFound('Application not found');
+  }
+
+  if (application.applicant.toString() !== candidateId.toString()) {
+    throw ApiError.forbidden('You do not have permission to withdraw this application');
+  }
+
+  if (application.status === 'withdrawn') {
+    throw ApiError.badRequest('Application has already been withdrawn');
+  }
+
+  if (['hired', 'rejected'].includes(application.status)) {
+    throw ApiError.badRequest(`Cannot withdraw an application that is already ${application.status}`);
+  }
+
+  // Update application
+  application.status = 'withdrawn';
+  application.statusHistory.push({
+    status: 'withdrawn',
+    changedBy: candidateId,
+    changedAt: new Date(),
+    note: reason || 'Application withdrawn by candidate',
+  });
+
+  await application.save();
+
+  // Atomically decrement applicationCount on Job
+  await Job.findOneAndUpdate(
+    { _id: application.job, applicationCount: { $gt: 0 } },
+    { $inc: { applicationCount: -1 } }
+  );
+
+  // Notify employer
+  const job = await Job.findById(application.job);
+  if (job) {
+    const company = await Company.findById(job.company);
+    if (company && company.owner) {
+      Notification.create({
+        user: company.owner,
+        type: 'application_status_update',
+        title: 'Application Withdrawn',
+        message: `A candidate has withdrawn their application for "${job.title}".`,
+        relatedModel: 'Application',
+        relatedId: application._id,
+        actionUrl: `/employer/applications/${application._id}`,
+      }).catch((err) => logger.error('Failed to create withdrawal notification', { error: err.message }));
+    }
+  }
+
+  const result = application.toJSON();
+  if (Array.isArray(result.statusHistory)) {
+    result.statusHistory = result.statusHistory.map((h) => ({
+      status: h.status,
+      changedAt: h.changedAt,
+    }));
+  }
+  delete result.rating;
+
+  return result;
+}
+
 module.exports = {
   applyToJob,
   getSeekerApplications,
   getJobApplications,
+  getApplicationById,
+  withdrawApplication,
   getApplicationFitAnalysis,
   updateApplicationStatus,
   addCandidateNote,

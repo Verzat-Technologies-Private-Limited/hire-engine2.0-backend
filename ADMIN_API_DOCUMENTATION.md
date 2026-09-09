@@ -13,11 +13,20 @@
    - [Standard API Response Format](#13-standard-api-response-format)
    - [Standard API Error Format & Status Codes](#14-standard-api-error-format--status-codes)
    - [Pagination & Sorting Standards](#15-pagination--sorting-standards)
-2. [Employer Verification & User Compliance](#2-employer-verification--user-compliance)
+2. [Employer Directory, Verification & Compliance](#2-employer-directory-verification--compliance)
+   - `GET /api/v1/admin/employers` (Full Employer Directory Search)
    - `GET /api/v1/admin/employers/pending` (List Pending Employer Verifications)
-   - `PATCH /api/v1/admin/employers/:id/verify` (Approve / Reject Employer)
+   - `GET /api/v1/admin/employers/:id` (Get Employer Details & Document Checklist for Review)
+   - `GET /api/v1/admin/employers/:id/jobs` (List All Jobs by Employer)
+   - `PATCH /api/v1/admin/employers/:id/verify` (Verify Employer: Approve / Reject / Request Info / Under Review)
+   - [Admin SLA Monitoring & Dashboard Alerts](#26-admin-sla-monitoring--dashboard-alerts)
+   - `GET /api/v1/admin/users` (List All Platform Users)
    - `PATCH /api/v1/admin/users/:id/suspend` (Suspend / Ban / Reactivate User)
-3. [Content Moderation & Flagged Content](#3-content-moderation--flagged-content)
+3. [Global Job Moderation & Flagged Content](#3-global-job-moderation--flagged-content)
+   - `GET /api/v1/admin/jobs` (Global Job Search & Moderation Triage)
+   - `GET /api/v1/admin/jobs/:id` (Full Job Inspection for Admin)
+   - `PATCH /api/v1/admin/jobs/:id/status` (Admin Force Actions on Job Status & Expiration)
+   - `POST /api/v1/admin/jobs/bulk-action` (Bulk Job Operations: Activate, Pause, Close, Expire, Delete)
    - `GET /api/v1/admin/flags` (List Flagged Content)
    - `PATCH /api/v1/admin/flags/:id` (Resolve Flag Report)
 4. [Taxonomy Management](#4-taxonomy-management)
@@ -27,12 +36,14 @@
 5. [System Configuration](#5-system-configuration)
    - `GET /api/v1/admin/config` (Get All System Configs)
    - `PATCH /api/v1/admin/config` (Update System Configuration)
-6. [Executive Reports & Platform Insights](#6-executive-reports--platform-insights)
-   - `GET /api/v1/admin/reports/overview` (Executive Report Dashboard)
-7. [Financial Refunds & Transaction Management](#7-financial-refunds--transaction-management)
+6. [Executive Reports & Monster Labor Market Analytics](#6-executive-reports--monster-labor-market-analytics)
+   - `GET /api/v1/admin/reports/overview` (Executive Analytics: Trends, Multi-Currency, In-Demand Skills & Funnel Rates)
+7. [Financial Transactions & Refund Operations](#7-financial-transactions--refund-operations)
+   - `GET /api/v1/admin/transactions` (Financial Transactions List & Discovery)
+   - `GET /api/v1/admin/transactions/:id` (Single Transaction Detail with Audit Trail)
    - `POST /api/v1/admin/transactions/:id/refund` (Process Refund)
 8. [Audit Logs](#8-audit-logs)
-   - `GET /api/v1/admin/audit-logs` (List Admin Audit Trail)
+   - `GET /api/v1/admin/audit-logs` (List Admin Audit Trail with Filters)
 9. [Subscription Plan Management (CRUD)](#9-subscription-plan-management-crud)
    - `GET /api/v1/admin/plans` (List All Plans)
    - `POST /api/v1/admin/plans` (Create Plan)
@@ -145,9 +156,89 @@ All paginated list endpoints accept these **query parameters**:
 
 ---
 
-## 2. Employer Verification & User Compliance
+## 2. Employer Directory, Verification & Compliance
 
-### 2.1 List Pending Employer Verifications
+### 2.1 Full Employer Directory Search
+
+Search, filter, and inspect all registered employer companies across all verification statuses and supported countries. Each record is decorated with job metrics (`totalJobs`, `activeJobs`) and localized country plugin metadata (`name`, `currency`, `locale`, `paymentProvider`).
+
+- **Method / URL**: `GET /api/v1/admin/employers`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `page` | `integer ≥ 1` | `1` | Page number |
+| `limit` | `integer 1-100` | `20` | Items per page (max 100) |
+| `sort` | `string` | `-createdAt` | Sort field (e.g. `-createdAt`, `name`) |
+| `search` | `string` | *(none)* | Keyword search across company name, website, contact name, or phone |
+| `verificationStatus` | `string` | *(all)* | Filter by verification status: `"pending"`, `"under_review"`, `"information_required"`, `"approved"`, `"rejected"` |
+| `countryCode` | `string` | *(all)* | Filter by ISO 2-letter country code (e.g. `"US"`, `"IN"`) |
+| `industry` | `string` | *(all)* | Filter by industry vertical (case-insensitive substring) |
+| `dateFrom` | `string (ISO)` | *(none)* | Filter companies registered on or after this date |
+| `dateTo` | `string (ISO)` | *(none)* | Filter companies registered on or before this date |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "All platform employers retrieved",
+  "data": [
+    {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc.",
+      "slug": "cloudscale-technologies-inc-lnk3x7f",
+      "website": "https://cloudscale.io",
+      "industry": "Cloud Computing & SaaS",
+      "size": "51-200",
+      "description": "Enterprise cloud consulting and cloud migration services.",
+      "logoUrl": "https://storage.hireengine.com/logos/cloudscale.png",
+      "countryCode": "US",
+      "verificationStatus": "approved",
+      "verificationNotes": "All CP575 documents verified against state corporation records.",
+      "phone": "+14155552671",
+      "contactName": "Sarah Jenkins",
+      "isPhoneVerified": true,
+      "totalJobs": 14,
+      "activeJobs": 6,
+      "country": {
+        "code": "US",
+        "name": "United States",
+        "currency": "USD",
+        "locale": "en-US",
+        "paymentProvider": "stripe"
+      },
+      "owner": {
+        "_id": "66b44a00e7b231123a8b4500",
+        "firstName": "Sarah",
+        "lastName": "Jenkins",
+        "email": "sarah.jenkins@cloudscale.io",
+        "phone": "+14155552671",
+        "isEmailVerified": true,
+        "createdAt": "2026-08-20T14:30:00.000Z"
+      },
+      "createdAt": "2026-08-20T14:32:00.000Z",
+      "updatedAt": "2026-08-22T10:15:00.000Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 5,
+      "totalDocs": 94,
+      "limit": 20,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+---
+
+### 2.2 List Pending Employer Verifications
 
 Fetches all companies awaiting admin verification review. Sorted by creation date (newest first).
 
@@ -159,7 +250,8 @@ Fetches all companies awaiting admin verification review. Sorted by creation dat
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `page` | `integer` | `1` | Page number |
-| `limit` | `integer` | `20` | Items per page |
+| `limit` | `integer` | `20` | Items per page (max 100) |
+| `status` | `string` | *(all pending)* | Optional status filter: `"pending"`, `"under_review"`, or `"information_required"`. If omitted, returns all employers needing action (`['pending', 'under_review', 'information_required']`). |
 
 #### Response `(200 OK)`
 ```json
@@ -180,6 +272,13 @@ Fetches all companies awaiting admin verification review. Sorted by creation dat
       "countryCode": "US",
       "verificationStatus": "pending",
       "verificationNotes": "",
+      "phone": "+14155550199",
+      "contactName": "Sarah Jenkins",
+      "isPhoneVerified": true,
+      "verifiedPhone": true,
+      "reviewDeadlineAt": "2026-08-22T10:05:00.000Z",
+      "infoRequestedAt": null,
+      "infoRequestedNotes": "",
       "verifiedAt": null,
       "verifiedBy": null,
       "registrationDetails": {
@@ -236,9 +335,190 @@ Fetches all companies awaiting admin verification review. Sorted by creation dat
 
 ---
 
-### 2.2 Approve or Reject Employer Verification
+### 2.3 Get Employer Details & Document Checklist for Review
 
-Admin reviews company registration and approves or rejects the application. Creates an audit log entry.
+Retrieve comprehensive company information, owner details, phone verification status, uploaded compliance documents, review SLA deadline, and automated verification checklist computed dynamically from the company's Country Plugin.
+
+- **Method / URL**: `GET /api/v1/admin/employers/:id`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### URL Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the company (24-char hex) |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Employer company details retrieved successfully",
+  "data": {
+    "_id": "66b44a20e7b231123a8b4588",
+    "name": "CloudScale Technologies Inc.",
+    "slug": "cloudscale-technologies-inc-lnk3x7f",
+    "website": "https://cloudscale.io",
+    "industry": "Software & Internet",
+    "size": "51-200",
+    "description": "Leading cloud infrastructure and developer automation platform.",
+    "logoUrl": "",
+    "countryCode": "US",
+    "verificationStatus": "pending",
+    "verificationNotes": "",
+    "phone": "+14155550199",
+    "contactName": "Sarah Jenkins",
+    "isPhoneVerified": true,
+    "verifiedPhone": true,
+    "reviewDeadlineAt": "2026-08-22T10:05:00.000Z",
+    "infoRequestedAt": null,
+    "infoRequestedNotes": "",
+    "verifiedAt": null,
+    "verifiedBy": null,
+    "registrationDetails": {
+      "einNumber": "12-3456789",
+      "stateOfIncorporation": "DE",
+      "businessType": "corporation",
+      "registeredAddress": {
+        "street": "1209 North Orange Street",
+        "city": "Wilmington",
+        "state": "DE",
+        "zipCode": "19801"
+      }
+    },
+    "documents": [
+      {
+        "type": "ein_letter",
+        "label": "EIN Confirmation Letter",
+        "fileUrl": "https://storage.hireengine.com/docs/ein-letter-66b44a.pdf",
+        "publicId": "docs/ein-letter-66b44a",
+        "uploadedAt": "2026-08-21T10:05:00.000Z"
+      }
+    ],
+    "owner": {
+      "_id": "66b44a10e7b231123a8b4567",
+      "firstName": "Sarah",
+      "lastName": "Jenkins",
+      "email": "sarah.jenkins@techcorp.io",
+      "phone": "+14155550199",
+      "isEmailVerified": true,
+      "createdAt": "2026-08-21T10:00:00.000Z"
+    },
+    "country": {
+      "code": "US",
+      "name": "United States",
+      "currency": "USD",
+      "locale": "en-US",
+      "taxConfiguration": {
+        "name": "State Sales Tax",
+        "rate": 0,
+        "type": "destination_based",
+        "included": false
+      },
+      "formattedAddress": "500 Howard Street, Suite 400, San Francisco, CA 94105, United States",
+      "documentChecklist": [
+        {
+          "type": "ein_letter",
+          "label": "EIN Confirmation Letter (CP 575)",
+          "description": "Upload your IRS EIN confirmation letter",
+          "required": true,
+          "isUploaded": true,
+          "uploadedDocument": {
+            "type": "ein_letter",
+            "label": "EIN Confirmation Letter",
+            "fileUrl": "https://storage.hireengine.com/docs/ein-letter-66b44a.pdf"
+          }
+        },
+        {
+          "type": "articles_of_incorporation",
+          "label": "Articles of Incorporation",
+          "description": "Upload your state-filed articles of incorporation or organization",
+          "required": true,
+          "isUploaded": false,
+          "uploadedDocument": null
+        },
+        {
+          "type": "w9_form",
+          "label": "W-9 Form",
+          "description": "Upload a completed W-9 form",
+          "required": false,
+          "isUploaded": false,
+          "uploadedDocument": null
+        }
+      ],
+      "documentCompleteness": {
+        "totalRequired": 2,
+        "uploadedRequired": 1,
+        "isComplete": false
+      }
+    }
+  }
+}
+```
+
+---
+
+### 2.4 List All Jobs by Employer
+
+Retrieve all job listings posted by a specific employer company, with optional filtering by job status. Useful for auditing employer activity and detecting fraudulent job campaigns.
+
+- **Method / URL**: `GET /api/v1/admin/employers/:id/jobs`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### URL Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the employer company |
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `page` | `integer ≥ 1` | `1` | Page number |
+| `limit` | `integer 1-100` | `20` | Items per page |
+| `status` | `string` | *(all)* | Filter by job status: `"draft"`, `"active"`, `"paused"`, `"closed"`, `"expired"` |
+| `sort` | `string` | `-createdAt` | Sort order (e.g. `-createdAt`, `title`) |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Employer jobs retrieved",
+  "data": [
+    {
+      "_id": "66c22a40e7b231123a8e9100",
+      "company": "66b44a20e7b231123a8b4588",
+      "title": "Senior DevOps Engineer",
+      "status": "active",
+      "employmentType": "full-time",
+      "workplaceType": "remote",
+      "viewCount": 240,
+      "clickCount": 48,
+      "applicationCount": 16,
+      "isSponsored": true,
+      "createdAt": "2026-08-21T09:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 1,
+      "totalDocs": 1,
+      "limit": 20,
+      "hasNextPage": false,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+---
+
+### 2.5 Verify Employer (Approve, Reject, Request Info, Under Review)
+
+Admin reviews the company's registration details and documents, and submits a verification decision. The system dynamically resolves the company's Country Plugin and dispatches localized in-app notifications and branded emails via the platform's messaging adapters.
 
 - **Method / URL**: `PATCH /api/v1/admin/employers/:id/verify`
 - **Auth**: `Bearer <token>` (Admin only)
@@ -252,15 +532,24 @@ Admin reviews company registration and approves or rejects the application. Crea
 #### Request Body
 ```json
 {
-  "status": "approved",
-  "notes": "All registration documents verified. Business registration confirmed via state records."
+  "status": "information_required",
+  "notes": "GST registration certificate is expired. Please upload an updated Form GST REG-06 showing active status."
 }
 ```
 
 | Field | Type | Required | Validation | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `status` | `string` | **Yes** | `"approved"` or `"rejected"` | Verification decision |
-| `notes` | `string` | No | Max 1000 chars, can be empty | Admin notes explaining the decision |
+| `status` | `string` | **Yes** | `"approved"`, `"rejected"`, `"information_required"`, `"under_review"` | Verification decision |
+| `notes` | `string` | **Recommended** | Max 1000 chars | Admin notes explaining decision or specific documents requested |
+
+#### Status Actions & Effects:
+
+| Status | Operational Effect | Audit Action | Owner Notification |
+| :--- | :--- | :--- | :--- |
+| `approved` | Unlocks live job posting and candidate search | `company.verified` | In-app notification + celebratory approval email |
+| `rejected` | Blocks job postings; profile remains rejected | `company.rejected` | In-app notification + rejection email with feedback |
+| `information_required` | Sets `infoRequestedAt` & `infoRequestedNotes`; alerts employer to re-upload documents | `company.information_requested` | Action-required alert with direct link to document upload portal |
+| `under_review` | Flags company for ongoing secondary compliance check | `company.under_review` | In-app update alerting employer that review is underway |
 
 #### Response `(200 OK)`
 ```json
@@ -276,8 +565,10 @@ Admin reviews company registration and approves or rejects the application. Crea
     "industry": "Software & Internet",
     "size": "51-200",
     "countryCode": "US",
-    "verificationStatus": "approved",
-    "verificationNotes": "All registration documents verified. Business registration confirmed via state records.",
+    "verificationStatus": "information_required",
+    "verificationNotes": "GST registration certificate is expired. Please upload an updated Form GST REG-06 showing active status.",
+    "infoRequestedAt": "2026-08-22T14:30:00.000Z",
+    "infoRequestedNotes": "GST registration certificate is expired. Please upload an updated Form GST REG-06 showing active status.",
     "verifiedAt": "2026-08-22T14:30:00.000Z",
     "verifiedBy": "66b44a00e7b231123a8b4500",
     "createdAt": "2026-08-21T10:05:00.000Z",
@@ -289,12 +580,84 @@ Admin reviews company registration and approves or rejects the application. Crea
 #### Error Responses
 | Status | Cause |
 | :--- | :--- |
-| `400` | Invalid `status` value (must be `approved` or `rejected`) |
+| `400` | Invalid `status` value (must be one of `[approved, rejected, information_required, under_review]`) |
 | `404` | Company with given `:id` not found |
 
 ---
 
-### 2.3 Suspend, Ban, or Reactivate a User
+### 2.6 Admin SLA Monitoring & Dashboard Alerts
+
+When an employer registers, the system automatically dispatches an alert to all active platform administrators:
+- **Notification Type**: `company_pending_review`
+- **Notification Title**: `"New Employer Registration Pending Review"`
+- **Message**: `"Company \"<Name>\" has registered and is awaiting verification review."`
+- **Target URL**: `/admin/employers/:id`
+- **Review SLA Countdown**: The `reviewDeadlineAt` field provides admins with the target review completion time (e.g. 48 hours for India, 24 hours for US) configured by each Country Plugin. Pending queues should sort by `reviewDeadlineAt ASC` to ensure compliance with verification SLAs.
+
+---
+
+### 2.7 List All Platform Users
+
+Search, filter, and inspect registered users across the platform (job seekers and employers). Excludes internal admin accounts.
+
+- **Method / URL**: `GET /api/v1/admin/users`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `page` | `integer ≥ 1` | `1` | Page number |
+| `limit` | `integer 1-100` | `20` | Items per page (max 100) |
+| `sort` | `string` | `-createdAt` | Sort order (e.g. `-createdAt`, `firstName`, `lastLoginAt`) |
+| `role` | `string` | *(all non-admin)* | Filter by role: `"jobseeker"` or `"employer"` |
+| `status` | `string` | *(all)* | Filter by account status: `"active"`, `"suspended"`, `"banned"` |
+| `search` | `string` | *(none)* | Case-insensitive search across first name, last name, or email |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "All users retrieved",
+  "data": [
+    {
+      "_id": "66b44a10e7b231123a8b4567",
+      "firstName": "Sarah",
+      "lastName": "Jenkins",
+      "email": "sarah.jenkins@techcorp.io",
+      "role": "employer",
+      "status": "active",
+      "createdAt": "2026-08-21T10:00:00.000Z",
+      "lastLoginAt": "2026-09-04T08:15:00.000Z"
+    },
+    {
+      "_id": "66b44a70e7b231123a8b4644",
+      "firstName": "Michael",
+      "lastName": "Chen",
+      "email": "michael.chen@devmail.com",
+      "role": "jobseeker",
+      "status": "active",
+      "createdAt": "2026-08-21T09:00:00.000Z",
+      "lastLoginAt": "2026-09-04T12:30:00.000Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 25,
+      "totalDocs": 492,
+      "limit": 20,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+---
+
+### 2.8 Suspend, Ban, or Reactivate a User
 
 Admin manages user account status — suspend, permanently ban, or reactivate a previously suspended/banned user. Creates an audit log entry.
 
@@ -356,9 +719,255 @@ Admin manages user account status — suspend, permanently ban, or reactivate a 
 
 ---
 
-## 3. Content Moderation & Flagged Content
+## 3. Global Job Moderation & Flagged Content
 
-### 3.1 List Flagged Content Reports
+### 3.1 Global Job Search & Moderation Triage
+
+Retrieve and filter job listings across all platform employers with comprehensive moderation criteria, country filtering, sponsorship status, and community flag indicators (`pendingFlagsCount`).
+
+- **Method / URL**: `GET /api/v1/admin/jobs`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `page` | `integer ≥ 1` | `1` | Page number |
+| `limit` | `integer 1-100` | `20` | Items per page (max 100) |
+| `sort` | `string` | `-createdAt` | Sort order (e.g. `-createdAt`, `viewCount`, `title`) |
+| `search` | `string` | *(none)* | Full-text search across title, description, skills, category |
+| `status` | `string` | *(all)* | Filter by job status: `"draft"`, `"active"`, `"paused"`, `"closed"`, `"expired"` |
+| `company` | `string` | *(all)* | MongoDB ObjectId of a specific company |
+| `isSponsored` | `boolean` | *(all)* | Filter by promoted/sponsored status (`true` / `false`) |
+| `employmentType` | `string` | *(all)* | `"full-time"`, `"part-time"`, `"contract"`, `"internship"` |
+| `workplaceType` | `string` | *(all)* | `"remote"`, `"hybrid"`, `"onsite"` |
+| `country` | `string` | *(all)* | ISO country code (filters by location or company country) |
+| `hasFlags` | `boolean` | *(all)* | When `true`, returns only jobs with pending moderation flags |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "All platform jobs retrieved",
+  "data": [
+    {
+      "_id": "66b44a50e7b231123a8b9001",
+      "title": "Staff Backend Engineer",
+      "slug": "staff-backend-engineer-92a10c",
+      "company": {
+        "_id": "66b44a20e7b231123a8b4588",
+        "name": "CloudScale Technologies Inc.",
+        "slug": "cloudscale-technologies-inc-lnk3x7f",
+        "logoUrl": "https://storage.hireengine.com/logos/cloudscale.png",
+        "countryCode": "US",
+        "verificationStatus": "approved"
+      },
+      "postedBy": {
+        "_id": "66b44a00e7b231123a8b4500",
+        "firstName": "Sarah",
+        "lastName": "Jenkins",
+        "email": "sarah.jenkins@cloudscale.io"
+      },
+      "category": "Software Engineering",
+      "skills": ["Node.js", "MongoDB", "Distributed Systems"],
+      "employmentType": "full-time",
+      "workplaceType": "remote",
+      "status": "active",
+      "isSponsored": true,
+      "viewCount": 1420,
+      "clickCount": 310,
+      "applicationCount": 68,
+      "pendingFlagsCount": 1,
+      "expiresAt": "2026-09-20T14:32:00.000Z",
+      "createdAt": "2026-08-21T09:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 8,
+      "totalDocs": 154,
+      "limit": 20,
+      "hasNextPage": true,
+      "hasPrevPage": false
+    }
+  }
+}
+```
+
+---
+
+### 3.2 Full Job Listing Inspection for Admin
+
+Provides deep inspection of a specific job posting, including populated company details, poster contact, application pipeline status breakdown, all associated community/AI flag reports, and localized country plugin legal metadata.
+
+- **Method / URL**: `GET /api/v1/admin/jobs/:id`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### URL Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the job |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Job details for admin inspection retrieved",
+  "data": {
+    "_id": "66b44a50e7b231123a8b9001",
+    "title": "Staff Backend Engineer",
+    "description": "We are seeking an experienced Staff Backend Engineer...",
+    "status": "active",
+    "company": {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc.",
+      "countryCode": "US",
+      "verificationStatus": "approved"
+    },
+    "postedBy": {
+      "_id": "66b44a00e7b231123a8b4500",
+      "firstName": "Sarah",
+      "lastName": "Jenkins",
+      "email": "sarah.jenkins@cloudscale.io",
+      "phone": "+14155552671"
+    },
+    "salaryRange": {
+      "min": 160000,
+      "max": 195000,
+      "currency": "USD",
+      "period": "annually",
+      "isVisible": true
+    },
+    "applicationStats": {
+      "total": 68,
+      "byStatus": {
+        "submitted": 42,
+        "screening": 14,
+        "interview": 8,
+        "offer": 2,
+        "hired": 2
+      }
+    },
+    "flags": [
+      {
+        "_id": "66c11a30e7b231123a8bff01",
+        "reason": "misleading",
+        "description": "Salary range listed differs from initial phone screen description.",
+        "status": "pending",
+        "reportedBy": {
+          "_id": "66b44a10e7b231123a8b4570",
+          "firstName": "Jane",
+          "lastName": "Applicant",
+          "email": "jane.app@gmail.com"
+        },
+        "createdAt": "2026-08-22T09:15:00.000Z"
+      }
+    ],
+    "countryInfo": {
+      "code": "US",
+      "name": "United States",
+      "currency": "USD",
+      "locale": "en-US"
+    }
+  }
+}
+```
+
+---
+
+### 3.3 Admin Force Actions on Job Status
+
+Admin can override job posting status, force-close fraudulent or expired listings, toggle sponsorship, or modify expiration dates. Requires a mandatory audit reason (minimum 3 characters) and automatically dispatches a localized notification and email notice to the employer via Country Plugin formatting and EmailAdapter.
+
+- **Method / URL**: `PATCH /api/v1/admin/jobs/:id/status`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### Request Body
+```json
+{
+  "status": "closed",
+  "reason": "Job violates platform policy: external payment or check-cashing requested."
+}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `status` | `string` | No | `"draft"`, `"active"`, `"paused"`, `"closed"`, `"expired"` |
+| `isSponsored` | `boolean` | No | Toggle sponsorship / featured placement |
+| `expiresAt` | `string (ISO)\|null` | No | Set or extend job expiration date |
+| `reason` | `string` | **Yes** | Mandatory audit rationale (min 3, max 500 characters) |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Job status updated by administration",
+  "data": {
+    "_id": "66b44a50e7b231123a8b9001",
+    "title": "Staff Backend Engineer",
+    "status": "closed",
+    "isSponsored": false,
+    "updatedAt": "2026-08-22T16:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 3.4 Bulk Job Operations
+
+Perform bulk status updates or deletions on up to 100 jobs simultaneously (e.g. closing all listings for an unverified or suspended company). Generates an audit trail entry with full details.
+
+- **Method / URL**: `POST /api/v1/admin/jobs/bulk-action`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### Request Body
+```json
+{
+  "jobIds": [
+    "66b44a50e7b231123a8b9001",
+    "66b44a50e7b231123a8b9002",
+    "66b44a50e7b231123a8b9003"
+  ],
+  "action": "close",
+  "reason": "Associated employer account suspended for fraudulent registration details."
+}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `jobIds` | `string[]` | **Yes** | Array of 1 to 100 MongoDB ObjectIds |
+| `action` | `string` | **Yes** | `"activate"`, `"pause"`, `"close"`, `"expire"`, `"delete"` |
+| `reason` | `string` | **Yes** | Mandatory audit rationale (min 3, max 500 characters) |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Bulk job action executed successfully",
+  "data": {
+    "success": true,
+    "action": "close",
+    "reason": "Associated employer account suspended for fraudulent registration details.",
+    "affectedCount": 3,
+    "jobIds": [
+      "66b44a50e7b231123a8b9001",
+      "66b44a50e7b231123a8b9002",
+      "66b44a50e7b231123a8b9003"
+    ]
+  }
+}
+```
+
+---
+
+### 3.5 List Flagged Content Reports
 
 Retrieve flagged/reported content items from the community or AI-based moderation. Supports filtering by status.
 
@@ -810,14 +1419,24 @@ Create or update a system configuration entry. If the key doesn't exist, it's cr
 
 ---
 
-## 6. Executive Reports & Platform Insights
+## 6. Executive Reports & Monster Labor Market Analytics
 
-### 6.1 Executive Report Dashboard
+### 6.1 Executive Platform & Market Analytics
 
-Returns aggregated platform-wide KPI metrics for the admin dashboard. No query parameters required.
+Provides leadership with real-time, high-level business intelligence, time-series growth trends, multi-currency revenue isolation, labor market skill/category demand metrics, and recruitment funnel conversion efficiency. Results are cached via `CacheAdapter` with a 60-second TTL (pass `refresh=true` to bypass cache).
 
 - **Method / URL**: `GET /api/v1/admin/reports/overview`
 - **Auth**: `Bearer <token>` (Admin only)
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `dateFrom` | `string (ISO)` | *30 days ago* | Starting timestamp for period metrics and trends |
+| `dateTo` | `string (ISO)` | *Now* | Ending timestamp for period metrics and trends |
+| `country` | `string` | *(all)* | Filter analytics by country code (e.g. `"US"`, `"IN"`) |
+| `interval` | `string` | `"day"` | Time-series aggregation interval: `"day"`, `"week"`, `"month"` |
+| `refresh` | `boolean` | `false` | When `true`, forces fresh aggregation and invalidates cache |
 
 #### Response `(200 OK)`
 ```json
@@ -826,34 +1445,213 @@ Returns aggregated platform-wide KPI metrics for the admin dashboard. No query p
   "statusCode": 200,
   "message": "Executive report metrics generated",
   "data": {
+    "filters": {
+      "dateFrom": "2026-07-23T10:00:00.000Z",
+      "dateTo": "2026-08-22T10:00:00.000Z",
+      "country": "ALL",
+      "interval": "day"
+    },
     "metrics": {
       "totalUsers": 12450,
+      "newUsersInPeriod": 1120,
       "totalEmployers": 834,
+      "approvedEmployers": 742,
+      "newEmployersInPeriod": 68,
       "totalJobs": 5672,
       "activeJobs": 2341,
+      "newJobsInPeriod": 840,
       "totalApplications": 89234,
-      "totalRevenue": 1548750.50
+      "newApplicationsInPeriod": 14200,
+      "totalRevenue": 1548750.50,
+      "revenueByCurrency": {
+        "USD": {
+          "gross": 1245000.00,
+          "transactionCount": 612
+        },
+        "INR": {
+          "gross": 25200000.00,
+          "transactionCount": 420
+        }
+      }
+    },
+    "laborMarketInsights": {
+      "topCategories": [
+        { "category": "Software Engineering", "count": 890 },
+        { "category": "Data Science & AI", "count": 420 },
+        { "category": "Cloud Architecture", "count": 310 },
+        { "category": "Product Management", "count": 240 },
+        { "category": "Cybersecurity", "count": 190 }
+      ],
+      "topSkills": [
+        { "skill": "React", "count": 780 },
+        { "skill": "Node.js", "count": 710 },
+        { "skill": "Python", "count": 640 },
+        { "skill": "AWS", "count": 590 },
+        { "skill": "TypeScript", "count": 520 },
+        { "skill": "Kubernetes", "count": 460 },
+        { "skill": "SQL", "count": 430 },
+        { "skill": "Docker", "count": 410 },
+        { "skill": "Go", "count": 290 },
+        { "skill": "GraphQL", "count": 220 }
+      ],
+      "workplaceDistribution": [
+        { "type": "remote", "count": 1170, "percentage": 50.0 },
+        { "type": "hybrid", "count": 702, "percentage": 30.0 },
+        { "type": "onsite", "count": 469, "percentage": 20.0 }
+      ],
+      "employmentTypeDistribution": [
+        { "type": "full-time", "count": 1872, "percentage": 80.0 },
+        { "type": "contract", "count": 351, "percentage": 15.0 },
+        { "type": "part-time", "count": 94, "percentage": 4.0 },
+        { "type": "internship", "count": 24, "percentage": 1.0 }
+      ],
+      "topHiringEmployers": [
+        { "companyId": "66b44a20e7b231123a8b4588", "name": "CloudScale Technologies Inc.", "countryCode": "US", "activeJobs": 24 },
+        { "companyId": "66b44a20e7b231123a8b4589", "name": "Infosys Ltd", "countryCode": "IN", "activeJobs": 19 }
+      ]
+    },
+    "recruitmentFunnel": {
+      "totalViews": 248900,
+      "totalClicks": 52100,
+      "totalApplications": 14200,
+      "clickThroughRatePercent": 20.93,
+      "applicationConversionRatePercent": 27.25
+    },
+    "trends": {
+      "jobPostings": [
+        { "date": "2026-08-01", "count": 28 },
+        { "date": "2026-08-02", "count": 34 }
+      ],
+      "applications": [
+        { "date": "2026-08-01", "count": 480 },
+        { "date": "2026-08-02", "count": 520 }
+      ]
+    },
+    "metricsByCountry": [
+      { "countryCode": "US", "totalEmployers": 520, "verifiedEmployers": 480 },
+      { "countryCode": "IN", "totalEmployers": 314, "verifiedEmployers": 262 }
+    ]
+  }
+}
+```
+
+---
+
+## 7. Financial Transactions & Refund Operations
+
+### 7.1 List Financial Transactions
+
+Comprehensive transaction explorer across all subscription plans, job boosts, and refunds. Multi-currency and multi-provider aware.
+
+- **Method / URL**: `GET /api/v1/admin/transactions`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `page` | `integer ≥ 1` | `1` | Page number |
+| `limit` | `integer 1-100` | `20` | Items per page |
+| `sort` | `string` | `-createdAt` | Sort order (e.g. `-createdAt`, `-amount`) |
+| `status` | `string` | *(all)* | `"pending"`, `"succeeded"`, `"failed"`, `"refunded"` |
+| `type` | `string` | *(all)* | `"subscription"`, `"job_promotion"`, `"refund"` |
+| `paymentProvider` | `string` | *(all)* | `"stripe"`, `"razorpay"` |
+| `currency` | `string` | *(all)* | ISO currency code (e.g. `"USD"`, `"INR"`) |
+| `countryCode` | `string` | *(all)* | Filter transactions for employers in this country |
+| `company` | `string` | *(all)* | MongoDB ObjectId of a company |
+| `search` | `string` | *(none)* | Search externalPaymentId, invoiceNumber, or description |
+| `dateFrom` | `string (ISO)` | *(none)* | Filter transactions created on or after date |
+| `dateTo` | `string (ISO)` | *(none)* | Filter transactions created on or before date |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "All financial transactions retrieved",
+  "data": [
+    {
+      "_id": "66f33d10e7b231123a8e0001",
+      "company": {
+        "_id": "66b44a20e7b231123a8b4588",
+        "name": "CloudScale Technologies Inc.",
+        "logoUrl": "https://storage.hireengine.com/logos/cloudscale.png",
+        "countryCode": "US"
+      },
+      "type": "subscription",
+      "amount": 299.00,
+      "currency": "USD",
+      "status": "succeeded",
+      "paymentProvider": "stripe",
+      "externalPaymentId": "pi_3PxAbCdEfGhIjKlM",
+      "invoiceNumber": "INV-2026-0847",
+      "description": "Monthly Professional Plan",
+      "createdAt": "2026-08-01T00:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 12,
+      "totalDocs": 234,
+      "limit": 20,
+      "hasNextPage": true,
+      "hasPrevPage": false
     }
   }
 }
 ```
 
-#### Metrics Reference
+---
 
-| Metric | Type | Description |
-| :--- | :--- | :--- |
-| `totalUsers` | `integer` | Total registered jobseeker accounts |
-| `totalEmployers` | `integer` | Total **approved/verified** companies |
-| `totalJobs` | `integer` | Total job postings (all statuses) |
-| `activeJobs` | `integer` | Currently active (published) jobs |
-| `totalApplications` | `integer` | Total job applications received |
-| `totalRevenue` | `number` | Sum of all succeeded transactions (in base currency units) |
+### 7.2 Get Transaction Details with Audit Trail
+
+Inspect a single transaction, including complete payment provider metadata, localized currency metadata, and related audit log entries.
+
+- **Method / URL**: `GET /api/v1/admin/transactions/:id`
+- **Auth**: `Bearer <token>` (Admin only)
+
+#### URL Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the transaction |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Transaction details retrieved",
+  "data": {
+    "_id": "66f33d10e7b231123a8e0001",
+    "company": {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc.",
+      "countryCode": "US"
+    },
+    "type": "subscription",
+    "amount": 299.00,
+    "currency": "USD",
+    "status": "succeeded",
+    "paymentProvider": "stripe",
+    "externalPaymentId": "pi_3PxAbCdEfGhIjKlM",
+    "invoiceNumber": "INV-2026-0847",
+    "currencyMeta": {
+      "currency": "USD",
+      "provider": "stripe",
+      "countryName": "United States",
+      "locale": "en-US"
+    },
+    "auditLogs": [],
+    "createdAt": "2026-08-01T00:00:00.000Z"
+  }
+}
+```
 
 ---
 
-## 7. Financial Refunds & Transaction Management
-
-### 7.1 Process Refund
+### 7.3 Process Refund
 
 Issue a full or partial refund for a completed transaction. The refund is processed via the original payment provider (Stripe / Razorpay). Only transactions with status `"succeeded"` are eligible.
 
@@ -951,8 +1749,13 @@ Retrieve the complete audit trail of all admin actions. Sorted by newest first. 
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `page` | `integer` | `1` | Page number |
-| `limit` | `integer` | `20` | Items per page |
+| `page` | `integer ≥ 1` | `1` | Page number |
+| `limit` | `integer 1-100` | `20` | Items per page (max 100) |
+| `action` | `string` | *(all)* | Filter by audit action (e.g. `"company.verified"`, `"job.bulk_action"`, `"user.suspended"`, `"refund.processed"`) |
+| `targetModel` | `string` | *(all)* | Filter by entity model (e.g. `"Company"`, `"Job"`, `"User"`, `"Transaction"`, `"Plan"`) |
+| `performedBy` | `string` | *(all)* | Filter by admin user ObjectId |
+| `dateFrom` | `string (ISO)` | *(none)* | Filter logs recorded on or after this timestamp |
+| `dateTo` | `string (ISO)` | *(none)* | Filter logs recorded on or before this timestamp |
 
 #### Response `(200 OK)`
 ```json
@@ -1480,8 +2283,19 @@ enum UserStatus {
 
 enum VerificationStatus {
   PENDING = 'pending',
+  UNDER_REVIEW = 'under_review',
+  INFORMATION_REQUIRED = 'information_required',
   APPROVED = 'approved',
   REJECTED = 'rejected',
+}
+
+enum NotificationType {
+  COMPANY_PENDING_REVIEW = 'company_pending_review',
+  COMPANY_VERIFIED = 'company_verified',
+  COMPANY_VERIFICATION_UPDATE = 'company_verification_update',
+  JOB_APPLICATION = 'job_application',
+  APPLICATION_STATUS = 'application_status',
+  SYSTEM = 'system',
 }
 
 enum FlagReason {
@@ -1545,10 +2359,14 @@ enum SuspendAction {
   REACTIVATE = 'reactivate',
 }
 
+type JobStatus = 'draft' | 'active' | 'paused' | 'closed' | 'expired';
+
+type BulkJobAction = 'activate' | 'pause' | 'close' | 'expire' | 'delete';
+
 type AuditAction =
   | 'user.created' | 'user.updated' | 'user.suspended' | 'user.banned' | 'user.deleted'
-  | 'company.created' | 'company.verified' | 'company.rejected'
-  | 'job.created' | 'job.updated' | 'job.closed' | 'job.flagged' | 'job.removed'
+  | 'company.created' | 'company.verified' | 'company.rejected' | 'company.information_requested' | 'company.under_review'
+  | 'job.created' | 'job.updated' | 'job.closed' | 'job.flagged' | 'job.removed' | 'job.bulk_action'
   | 'subscription.created' | 'subscription.cancelled'
   | 'refund.processed'
   | 'config.updated'
@@ -1604,6 +2422,13 @@ interface ICompany {
   countryCode: string;
   verificationStatus: VerificationStatus;
   verificationNotes: string;
+  phone: string;
+  contactName: string;
+  isPhoneVerified: boolean;
+  verifiedPhone: boolean;
+  reviewDeadlineAt: string | null;
+  infoRequestedAt: string | null;
+  infoRequestedNotes: string;
   verifiedAt: string | null;
   verifiedBy: string | null;
   registrationDetails: Record<string, any>;
@@ -1654,9 +2479,115 @@ interface ISystemConfig {
   updatedAt: string;
 }
 
+interface IAdminJob {
+  _id: string;
+  title: string;
+  slug: string;
+  company: {
+    _id: string;
+    name: string;
+    slug: string;
+    logoUrl?: string;
+    countryCode?: string;
+    verificationStatus: VerificationStatus;
+  };
+  postedBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  category: string;
+  skills: string[];
+  employmentType: string;
+  workplaceType: string;
+  status: JobStatus;
+  isSponsored: boolean;
+  viewCount: number;
+  clickCount: number;
+  applicationCount: number;
+  pendingFlagsCount: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface IAdminJobInspection {
+  _id: string;
+  title: string;
+  description: string;
+  status: JobStatus;
+  company: {
+    _id: string;
+    name: string;
+    countryCode?: string;
+    verificationStatus: VerificationStatus;
+  };
+  postedBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+  };
+  salaryRange?: {
+    min: number;
+    max: number;
+    currency: string;
+    period: string;
+    isVisible: boolean;
+  };
+  applicationStats: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+  flags: IFlag[];
+  countryInfo: {
+    countryCode: string;
+    name: string;
+    currency: string;
+    complianceRules?: Record<string, any>;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface IAdminEmployer {
+  _id: string;
+  name: string;
+  slug: string;
+  industry: string;
+  size: string;
+  logoUrl?: string;
+  countryCode: string;
+  verificationStatus: VerificationStatus;
+  address?: ICompanyAddress;
+  owner?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    status: UserStatus;
+  };
+  totalJobs: number;
+  activeJobs: number;
+  country: {
+    code: string;
+    name: string;
+    currency: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface ITransaction {
   _id: string;
-  company: string;
+  company: {
+    _id: string;
+    name: string;
+    slug?: string;
+    logoUrl?: string;
+    countryCode?: string;
+  } | string;
   type: TransactionType;
   amount: number;
   currency: string;
@@ -1670,9 +2601,22 @@ interface ITransaction {
   taxAmount: number;
   taxBreakdown: Record<string, any>;
   invoiceNumber: string;
-  processedBy: string | null;
+  processedBy: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ITransactionDetail extends ITransaction {
+  countryCurrencyMetadata?: {
+    currency: string;
+    isSupported: boolean;
+  };
+  auditLogs?: IAuditLog[];
 }
 
 interface IAuditLog {
@@ -1703,6 +2647,10 @@ interface IPlan {
 }
 
 interface IExecutiveReport {
+  dateRange: {
+    from: string;
+    to: string;
+  };
   metrics: {
     totalUsers: number;
     totalEmployers: number;
@@ -1710,6 +2658,30 @@ interface IExecutiveReport {
     activeJobs: number;
     totalApplications: number;
     totalRevenue: number;
+    revenueByCurrency: Record<string, number>;
+    newUsersInRange: number;
+    newJobsInRange: number;
+    newApplicationsInRange: number;
+  };
+  metricsByCountry: Record<string, {
+    totalEmployers: number;
+    activeJobs: number;
+  }>;
+  trends: {
+    usersByDay: Array<{ _id: string; count: number }>;
+    jobsByDay: Array<{ _id: string; count: number }>;
+    applicationsByDay: Array<{ _id: string; count: number }>;
+  };
+  laborMarketInsights: {
+    topJobCategories: Array<{ _id: string; count: number }>;
+    topSkillsInDemand: Array<{ _id: string; count: number }>;
+  };
+  recruitmentFunnel: {
+    totalViews: number;
+    totalClicks: number;
+    totalApplications: number;
+    clickThroughRate: string;
+    applyConversionRate: string;
   };
 }
 
@@ -1723,6 +2695,25 @@ interface VerifyEmployerPayload {
 interface SuspendUserPayload {
   action: SuspendAction;
   reason?: string; // Required when action is 'suspend' or 'ban'
+}
+
+interface UpdateJobStatusPayload {
+  status: JobStatus;
+  reason?: string;
+  notifyEmployer?: boolean;
+}
+
+interface BulkJobActionPayload {
+  jobIds: string[];
+  action: BulkJobAction;
+  reason?: string;
+}
+
+interface BulkJobActionResult {
+  action: BulkJobAction;
+  requested: number;
+  matched: number;
+  modified: number;
 }
 
 interface ResolveFlagPayload {
@@ -1884,7 +2875,17 @@ export default adminApi;
 ```typescript
 import adminApi from './adminApi';
 
-// ── Employer Verification ─────────────────────────
+// ── Employer Directory & Verification ─────────────
+
+// Search all employers across countries
+const employers = await adminApi.get('/employers', {
+  params: { search: 'cloud', country: 'US', verificationStatus: 'approved' },
+});
+
+// View employer's jobs
+const employerJobs = await adminApi.get(`/employers/${companyId}/jobs`, {
+  params: { status: 'active', page: 1, limit: 10 },
+});
 
 // List pending employers
 const { data } = await adminApi.get('/employers/pending', {
@@ -1899,13 +2900,40 @@ await adminApi.patch(`/employers/${companyId}/verify`, {
 
 // ── User Management ───────────────────────────────
 
+// Search and filter platform users (job seekers & employers)
+const users = await adminApi.get('/users', {
+  params: { role: 'employer', status: 'active', search: 'sarah' },
+});
+
 // Suspend user
 await adminApi.patch(`/users/${userId}/suspend`, {
   action: 'suspend',
   reason: 'Policy violation.',
 });
 
-// ── Flagged Content ───────────────────────────────
+// ── Global Job Moderation & Flagged Content ───────
+
+// Search platform-wide jobs with pending flags filter
+const jobs = await adminApi.get('/jobs', {
+  params: { status: 'active', hasFlags: true, country: 'US' },
+});
+
+// Deep inspect job with application stats & moderation flags
+const jobInspection = await adminApi.get(`/jobs/${jobId}`);
+
+// Force update job status
+await adminApi.patch(`/jobs/${jobId}/status`, {
+  status: 'closed',
+  reason: 'Violated platform job posting policies.',
+  notifyEmployer: true,
+});
+
+// Bulk update or purge jobs (up to 100)
+const bulkResult = await adminApi.post('/jobs/bulk-action', {
+  jobIds: [jobId1, jobId2],
+  action: 'close',
+  reason: 'Platform-wide moderation cleanup',
+});
 
 // Get pending flags
 const flags = await adminApi.get('/flags', {
@@ -1917,6 +2945,33 @@ await adminApi.patch(`/flags/${flagId}`, {
   status: 'resolved',
   resolutionNote: 'Confirmed scam.',
   actionTaken: 'removed',
+});
+
+// ── Financial Transactions & Discovery ───────────
+
+// Search and filter transactions across providers & currencies
+const transactions = await adminApi.get('/transactions', {
+  params: { status: 'succeeded', currency: 'USD', paymentProvider: 'stripe' },
+});
+
+// Get detailed transaction view with audit trail
+const transactionDetail = await adminApi.get(`/transactions/${transactionId}`);
+
+// Process full refund
+await adminApi.post(`/transactions/${transactionId}/refund`, {
+  amount: null,
+  reason: 'Customer dispute.',
+});
+
+// ── Executive Reports & Analytics ─────────────────
+
+// Fetch executive overview with date range and real-time cache bypass
+const report = await adminApi.get('/reports/overview', {
+  params: {
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    refresh: true,
+  },
 });
 
 // ── Taxonomy ──────────────────────────────────────
@@ -1944,18 +2999,6 @@ await adminApi.patch('/config', {
   key: 'max_jobs_per_employer',
   value: 100,
   category: 'thresholds',
-});
-
-// ── Executive Reports ─────────────────────────────
-
-const report = await adminApi.get('/reports/overview');
-
-// ── Refunds ───────────────────────────────────────
-
-// Process full refund
-await adminApi.post(`/transactions/${transactionId}/refund`, {
-  amount: null,
-  reason: 'Customer dispute.',
 });
 
 // ── Audit Logs ────────────────────────────────────
@@ -2003,19 +3046,29 @@ await adminApi.delete(`/plans/${planId}`);
 
 | # | Method | Endpoint | Description |
 | :--- | :--- | :--- | :--- |
-| 2.1 | `GET` | `/admin/employers/pending` | List pending employer verifications |
-| 2.2 | `PATCH` | `/admin/employers/:id/verify` | Approve / reject employer |
-| 2.3 | `PATCH` | `/admin/users/:id/suspend` | Suspend / ban / reactivate user |
-| 3.1 | `GET` | `/admin/flags` | List flagged content |
-| 3.2 | `PATCH` | `/admin/flags/:id` | Resolve flag report |
+| 2.1 | `GET` | `/admin/employers` | Search all platform employers (multi-country) |
+| 2.2 | `GET` | `/admin/employers/pending` | List pending employer verifications |
+| 2.3 | `GET` | `/admin/employers/:id` | Get employer details & verification checklist |
+| 2.4 | `GET` | `/admin/employers/:id/jobs` | List employer's job postings with stats |
+| 2.5 | `PATCH` | `/admin/employers/:id/verify` | Approve / reject / request info / under review |
+| 2.7 | `GET` | `/admin/users` | Search and list platform users (job seekers & employers) |
+| 2.8 | `PATCH` | `/admin/users/:id/suspend` | Suspend / ban / reactivate user |
+| 3.1 | `GET` | `/admin/jobs` | Global job search & moderation triage |
+| 3.2 | `GET` | `/admin/jobs/:id` | Full job inspection (flags, stats, country info) |
+| 3.3 | `PATCH` | `/admin/jobs/:id/status` | Force update job status |
+| 3.4 | `POST` | `/admin/jobs/bulk-action` | Batch actions on jobs (up to 100) |
+| 3.5 | `GET` | `/admin/flags` | List flagged content |
+| 3.6 | `PATCH` | `/admin/flags/:id` | Resolve flag report |
 | 4.1 | `GET` | `/admin/taxonomy` | List taxonomy entries |
 | 4.2 | `POST` | `/admin/taxonomy` | Create taxonomy entry |
 | 4.3 | `PATCH` | `/admin/taxonomy/:id` | Update taxonomy entry |
 | 5.1 | `GET` | `/admin/config` | Get all system configs |
 | 5.2 | `PATCH` | `/admin/config` | Update system config |
-| 6.1 | `GET` | `/admin/reports/overview` | Executive report metrics |
-| 7.1 | `POST` | `/admin/transactions/:id/refund` | Process refund |
-| 8.1 | `GET` | `/admin/audit-logs` | List audit trail |
+| 6.1 | `GET` | `/admin/reports/overview` | Executive analytics report (trends, funnel, country metrics) |
+| 7.1 | `GET` | `/admin/transactions` | Search and filter financial transactions |
+| 7.2 | `GET` | `/admin/transactions/:id` | Detailed transaction view & audit history |
+| 7.3 | `POST` | `/admin/transactions/:id/refund` | Process refund |
+| 8.1 | `GET` | `/admin/audit-logs` | List audit trail with filters |
 | 9.1 | `GET` | `/admin/plans` | List all plans |
 | 9.2 | `POST` | `/admin/plans` | Create plan |
 | 9.3 | `PATCH` | `/admin/plans/:id` | Update plan |
@@ -2023,4 +3076,4 @@ await adminApi.delete(`/plans/${planId}`);
 
 ---
 
-*Last updated: August 2026.*
+*Last updated: September 2026.*

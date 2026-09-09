@@ -276,6 +276,41 @@ async function verifyOtp(mobile, otp) {
   };
 }
 
+/**
+ * Change password for an authenticated user.
+ * Verifies current password before setting new password and invalidating refresh token.
+ * @param {string} userId
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<void>}
+ */
+async function changePassword(userId, currentPassword, newPassword) {
+  const user = await User.findById(userId).select('+passwordHash');
+  if (!user) {
+    throw ApiError.notFound('User not found');
+  }
+
+  if (user.authProvider !== 'local' && !user.passwordHash) {
+    throw ApiError.badRequest(
+      `Your account is registered via ${user.authProvider}. Password change is not supported for OAuth accounts.`
+    );
+  }
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    throw ApiError.badRequest('Current password is incorrect');
+  }
+
+  if (currentPassword === newPassword) {
+    throw ApiError.badRequest('New password cannot be the same as current password');
+  }
+
+  user.passwordHash = newPassword;
+  user.refreshToken = undefined;
+  _sanitizeUserCoordinates(user);
+  await user.save();
+}
+
 module.exports = {
   register,
   login,
@@ -286,4 +321,5 @@ module.exports = {
   verifyEmail,
   sendOtp,
   verifyOtp,
+  changePassword,
 };
