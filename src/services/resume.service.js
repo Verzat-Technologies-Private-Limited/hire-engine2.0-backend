@@ -122,12 +122,51 @@ async function getUserResumes(userId) {
  * @param {string} userId
  * @returns {Promise<object>}
  */
-async function getResumeById(resumeId, userId) {
-  const resume = await Resume.findOne({ _id: resumeId, user: userId });
+async function getResumeById(resumeId, user) {
+  const userId = user && typeof user === 'object' && user._id ? user._id : user;
+  const userRole = user && typeof user === 'object' ? user.role : null;
+
+  let resume;
+  if (userRole === 'admin') {
+    resume = await Resume.findById(resumeId);
+  } else if (userRole === 'employer') {
+    resume = await Resume.findById(resumeId);
+    if (resume && resume.user.toString() !== userId.toString()) {
+      const candidateUser = await User.findById(resume.user).select(
+        'profileVisibility status deletionRequestedAt'
+      );
+      const isPublic =
+        candidateUser &&
+        candidateUser.profileVisibility === 'public' &&
+        candidateUser.status === 'active' &&
+        !candidateUser.deletionRequestedAt;
+
+      if (!isPublic) {
+        const Company = require('../models/Company');
+        const Job = require('../models/Job');
+        const Application = require('../models/Application');
+
+        const companies = await Company.find({ 'teamMembers.user': userId }).select('_id');
+        const companyIds = companies.map((c) => c._id);
+        const jobIds = await Job.find({ company: { $in: companyIds } }).select('_id');
+        const hasApplied = await Application.exists({
+          applicant: resume.user,
+          job: { $in: jobIds },
+        });
+
+        if (!hasApplied) {
+          throw ApiError.notFound('Resume not found');
+        }
+      }
+    }
+  } else {
+    resume = await Resume.findOne({ _id: resumeId, user: userId });
+  }
+
   if (!resume) {
     throw ApiError.notFound('Resume not found');
   }
-  return resume.toJSON();
+  return resume.toJSON ? resume.toJSON() : resume;
 }
 
 /**
@@ -176,12 +215,11 @@ async function reparseResume(resumeId, userId) {
 /**
  * Generate AI quality feedback and ATS critique for a resume.
  * @param {string} resumeId
- * @param {string} userId
+ * @param {string|object} user
  * @returns {Promise<object>}
  */
-async function getResumeAnalysis(resumeId, userId) {
-  const resume = await Resume.findOne({ _id: resumeId, user: userId });
-  console.log({ resume });
+async function getResumeAnalysis(resumeId, user) {
+  const resume = await getResumeById(resumeId, user);
   if (!resume) {
     throw ApiError.notFound('Resume not found');
   }
@@ -197,12 +235,12 @@ async function getResumeAnalysis(resumeId, userId) {
 /**
  * Calculate match score between a candidate's resume and a specific job posting.
  * @param {string} resumeId
- * @param {string} userId
+ * @param {string|object} user
  * @param {string} jobId
  * @returns {Promise<object>}
  */
-async function getJobMatch(resumeId, userId, jobId) {
-  const resume = await Resume.findOne({ _id: resumeId, user: userId });
+async function getJobMatch(resumeId, user, jobId) {
+  const resume = await getResumeById(resumeId, user);
   if (!resume) {
     throw ApiError.notFound('Resume not found');
   }

@@ -13,7 +13,7 @@ const listResumes = asyncHandler(async (req, res) => {
 });
 
 const getResume = asyncHandler(async (req, res) => {
-  const resume = await resumeService.getResumeById(req.params.id, req.user._id);
+  const resume = await resumeService.getResumeById(req.params.id, req.user);
   ApiResponse.ok('Resume retrieved successfully', resume).send(res);
 });
 
@@ -23,14 +23,14 @@ const reparse = asyncHandler(async (req, res) => {
 });
 
 const analyze = asyncHandler(async (req, res) => {
-  const analysis = await resumeService.getResumeAnalysis(req.params.id, req.user._id);
+  const analysis = await resumeService.getResumeAnalysis(req.params.id, req.user);
   ApiResponse.ok('Resume analysis and ATS feedback generated successfully', analysis).send(res);
 });
 
 const matchJob = asyncHandler(async (req, res) => {
   const matchResult = await resumeService.getJobMatch(
     req.params.id,
-    req.user._id,
+    req.user,
     req.params.jobId
   );
   ApiResponse.ok('Job match analysis calculated successfully', matchResult).send(res);
