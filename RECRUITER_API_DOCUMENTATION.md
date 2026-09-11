@@ -1733,25 +1733,31 @@ Dispatch template-based or customized emails with dynamic placeholders (`{{candi
 
 ## 7. Talent Sourcing, Resume Database & AI Semantic Match
 
-### 7.1 Advanced Boolean & Hybrid Resume Search
+##
+# 7.1 Advanced Boolean & Hybrid Resume Search
 Search candidate resume database using Boolean logic, skills, experience range, location, and AI semantic matching.
+- **Privacy Enforcement**: Only active candidates with `profileVisibility: "public"` who have not requested account deletion are returned.
+- **Search Modes**:
+  - `keyword`: MongoDB `$text` Boolean search (AND/OR/NOT operators, phrase matching).
+  - `semantic`: Pure Gemini vector embedding search via MongoDB Atlas `$vectorSearch`.
+  - `hybrid` *(default)*: Runs keyword and semantic in parallel, merges, deduplicates, and re-ranks with weighted scoring (`0.4 × keyword + 0.6 × semantic`).
 
 - **Method / URL**: `GET /api/v1/search/resumes`
-- **Auth**: `Bearer <token>` (Requires active subscription plan with Resume DB access)
+- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
 
 #### Query Parameters
-| Param | Type | Example | Description |
-| :--- | :--- | :--- | :--- |
-| `q` | `string` | `(React OR Vue) AND Node.js NOT Angular` | Boolean search query |
-| `skills` | `string` | `TypeScript, Docker, AWS` | Comma-separated required skills |
-| `location` | `string` | `San Francisco, CA` | City, State or Country |
-| `experienceMin`| `number` | `5` | Minimum years of experience |
-| `experienceMax`| `number` | `12` | Maximum years of experience |
-| `education` | `string` | `bachelor` | `high_school`, `associate`, `bachelor`, `master`, `doctorate` |
-| `mode` | `string` | `hybrid` | `keyword` (fast Boolean), `semantic` (AI), `hybrid` (default) |
-| `sort` | `string` | `relevance` | `relevance`, `experience`, `date` |
-| `page` | `number` | `1` | Page number |
-| `limit` | `number` | `20` | Max 100 per page |
+| Param | Type | Required | Default | Example | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `q` | `string` | No | `""` | `(React OR Vue) AND Node.js NOT Angular` | Boolean search query string |
+| `skills` | `string` | No | `""` | `TypeScript, Docker, AWS` | Comma-separated required skills |
+| `location` | `string` | No | `""` | `San Francisco, CA` | City, State or Country (matches parsed location & experience) |
+| `experienceMin`| `number` | No | — | `5` | Minimum years of total experience |
+| `experienceMax`| `number` | No | — | `12` | Maximum years of total experience |
+| `education` | `string` | No | `""` | `bachelor` | `high_school`, `associate`, `bachelor`, `master`, `doctorate`, `any` |
+| `mode` | `string` | No | `hybrid` | `hybrid` | `keyword`, `semantic`, `hybrid` |
+| `sort` | `string` | No | `relevance` | `relevance` | `relevance`, `experience`, `date` |
+| `page` | `number` | No | `1` | `1` | Page number (minimum: 1) |
+| `limit` | `number` | No | `20` | `20` | Items per page (min: 1, max: 100) |
 
 #### Response `(200 OK)`
 ```json
@@ -1767,44 +1773,78 @@ Search candidate resume database using Boolean logic, skills, experience range, 
         "firstName": "Michael",
         "lastName": "Chen",
         "email": "michael.chen@devmail.com",
-        "phone": "+14155551234",
-        "location": {
-          "city": "San Francisco",
-          "state": "CA",
-          "country": "United States"
-        }
+        "role": "jobseeker",
+        "profileVisibility": "public",
+        "status": "active"
       },
       "title": "Michael Chen - Senior Full Stack Engineer",
-      "summary": "Full Stack Software Engineer with 6+ years building microservices and web applications...",
-      "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS", "MongoDB", "GraphQL"],
-      "experienceYears": 6.5,
-      "education": [
-        {
-          "institution": "University of California, Berkeley",
-          "degree": "Bachelor of Science",
-          "fieldOfStudy": "Computer Science",
-          "graduationYear": 2020
-        }
-      ],
-      "workExperience": [
-        {
-          "company": "ScaleTech Systems",
-          "position": "Senior Software Engineer",
-          "startDate": "2022-01-01",
-          "isCurrent": true,
-          "highlights": "Led backend architecture for payments service processing $50M/year."
-        }
-      ],
-      "score": 0.94
+      "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/michael_chen.pdf",
+      "publicId": "resumes/michael_chen_1789106000",
+      "fileType": "pdf",
+      "fileSize": 1048576,
+      "originalFileName": "Michael_Chen_Resume.pdf",
+      "isDefault": true,
+      "parsedData": {
+        "personalInfo": {
+          "name": "Michael Chen",
+          "email": "michael.chen@devmail.com",
+          "phone": "+14155551234",
+          "location": "San Francisco, CA",
+          "linkedin": "https://linkedin.com/in/michaelchen",
+          "github": "https://github.com/michaelchen",
+          "portfolio": "https://michaelchen.dev"
+        },
+        "headline": "Senior Full Stack Cloud Engineer",
+        "summary": "Full Stack Software Engineer with 6+ years building microservices and web applications...",
+        "experience": [
+          {
+            "company": "ScaleTech Systems",
+            "title": "Senior Software Engineer",
+            "location": "San Francisco, CA",
+            "startDate": "2022-01-01",
+            "endDate": null,
+            "current": true,
+            "description": "Led backend architecture for payments service processing $50M/year.",
+            "highlights": [
+              "Designed microservices with Node.js, MongoDB, and Redis",
+              "Reduced API latency by 40% using optimized vector search indexing"
+            ]
+          }
+        ],
+        "education": [
+          {
+            "institution": "University of California, Berkeley",
+            "degree": "Bachelor of Science",
+            "field": "Computer Science",
+            "graduationYear": 2020
+          }
+        ],
+        "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS", "MongoDB", "GraphQL"],
+        "certifications": [
+          {
+            "name": "AWS Certified Solutions Architect",
+            "issuer": "Amazon Web Services",
+            "year": 2023
+          }
+        ],
+        "languages": ["English"],
+        "totalYearsOfExperience": 6.5
+      },
+      "relevanceScore": 0.9412,
+      "createdAt": "2026-08-21T10:30:00.000Z",
+      "updatedAt": "2026-08-21T10:30:00.000Z"
     }
   ],
   "meta": {
+    "searchMode": "hybrid",
+    "keywordResults": 14,
+    "semanticResults": 10,
     "pagination": {
       "currentPage": 1,
-      "totalPages": 4,
-      "totalDocs": 72,
+      "totalPages": 1,
+      "totalDocs": 18,
       "limit": 20,
-      "hasNextPage": true,
+      "hasNextPage": false,
       "hasPrevPage": false
     }
   }
@@ -1814,10 +1854,18 @@ Search candidate resume database using Boolean logic, skills, experience range, 
 ---
 
 ### 7.2 Find Candidates Similar to a Top Candidate
-Find candidate resumes in the database that have similar skills and background to a high-performing candidate.
+Find candidate resumes in the database that have similar skills and background to a high-performing candidate using MongoDB Atlas vector similarity (`$vectorSearch`).
+- **Privacy Enforcement**: Only candidates with `profileVisibility: "public"` and `status: "active"` are returned.
+- **Source Filtering**: The target `resumeId` itself is automatically excluded from the similarity results.
 
-- **Method / URL**: `GET /api/v1/search/resumes/similar/:resumeId?limit=10`
-- **Auth**: `Bearer <token>`
+- **Method / URL**: `GET /api/v1/search/resumes/similar/:resumeId`
+- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
+
+#### URL Parameters & Query Parameters
+| Param | In | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `resumeId` | path | `string` | **Yes** | — | MongoDB ObjectId of the source candidate resume |
+| `limit` | query | `number` | No | `10` | Maximum similar candidates to return (min: 1, max: 50) |
 
 #### Response `(200 OK)`
 ```json
@@ -1828,10 +1876,28 @@ Find candidate resumes in the database that have similar skills and background t
   "data": [
     {
       "_id": "66b44ab0e7b231123a8b4699",
-      "candidateName": "David Miller",
-      "headline": "Lead Frontend / Full Stack Architect",
-      "skills": ["React", "Node.js", "TypeScript", "Next.js", "AWS"],
-      "similarityScore": 0.89
+      "user": {
+        "_id": "66b44a70e7b231123a8b4645",
+        "firstName": "David",
+        "lastName": "Miller",
+        "email": "david.miller@devmail.com",
+        "profileVisibility": "public",
+        "status": "active"
+      },
+      "title": "David Miller - Full Stack Architect",
+      "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/david_miller.pdf",
+      "fileType": "pdf",
+      "parsedData": {
+        "personalInfo": {
+          "name": "David Miller",
+          "location": "Austin, TX"
+        },
+        "headline": "Lead Frontend / Full Stack Architect",
+        "skills": ["React", "Node.js", "TypeScript", "Next.js", "AWS"],
+        "totalYearsOfExperience": 8
+      },
+      "semanticScore": 0.8921,
+      "createdAt": "2026-08-15T09:12:00.000Z"
     }
   ]
 }
@@ -1840,10 +1906,19 @@ Find candidate resumes in the database that have similar skills and background t
 ---
 
 ### 7.3 AI-Rank All Candidate Resumes Against a Job Posting
-Ranks the candidate database against the exact job description using high-dimensional cosine similarity embeddings.
+Ranks the candidate database against the exact job description using high-dimensional cosine similarity embeddings via MongoDB Atlas Vector Search.
+- **Privacy Enforcement**: Only candidates with `profileVisibility: "public"` and `status: "active"` are returned.
+- **Query Vector**: Uses the pre-computed job embedding vector or synthesizes a dynamic query embedding from the job title, description, skills, and qualifications.
 
-- **Method / URL**: `GET /api/v1/search/resumes/rank-by-job/:jobId?page=1&limit=20`
-- **Auth**: `Bearer <token>`
+- **Method / URL**: `GET /api/v1/search/resumes/rank-by-job/:jobId`
+- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
+
+#### URL Parameters & Query Parameters
+| Param | In | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `jobId` | path | `string` | **Yes** | — | MongoDB ObjectId of the job posting |
+| `page` | query | `number` | No | `1` | Pagination page number |
+| `limit` | query | `number` | No | `20` | Max results per page (min: 1, max: 100) |
 
 #### Response `(200 OK)`
 ```json
@@ -1854,11 +1929,26 @@ Ranks the candidate database against the exact job description using high-dimens
   "data": [
     {
       "_id": "66b44a80e7b231123a8b4655",
-      "candidateName": "Michael Chen",
-      "matchScore": 94,
-      "skills": ["React", "TypeScript", "Node.js", "AWS"],
-      "experienceYears": 6.5,
-      "city": "San Francisco"
+      "user": {
+        "_id": "66b44a70e7b231123a8b4644",
+        "firstName": "Michael",
+        "lastName": "Chen",
+        "email": "michael.chen@devmail.com",
+        "profileVisibility": "public",
+        "status": "active"
+      },
+      "title": "Michael Chen - Senior Full Stack Engineer",
+      "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/michael_chen.pdf",
+      "fileType": "pdf",
+      "parsedData": {
+        "headline": "Senior Full Stack Cloud Engineer",
+        "skills": ["React", "TypeScript", "Node.js", "AWS", "MongoDB"],
+        "totalYearsOfExperience": 6.5,
+        "personalInfo": {
+          "location": "San Francisco, CA"
+        }
+      },
+      "semanticScore": 0.9412
     }
   ],
   "meta": {
@@ -1897,7 +1987,15 @@ Save recurring talent queries and receive email/SMS notifications when new match
   "frequency": "daily"
 }
 ```
-*(Valid `frequency`: `"instant"`, `"daily"`, `"weekly"`)*
+
+| Field | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `name` | `string` | **Yes** | — | Name for this saved alert (1–100 chars) |
+| `searchType` | `string` | No | `"jobs"` | Target search type: `"jobs"` or `"resumes"` |
+| `filters` | `object` | **Yes** | — | Search criteria (supports `q`, `skills`, `location`, `experienceMin`, etc.) |
+| `emailAlert` | `boolean` | No | `true` | Send matching candidate updates via email |
+| `smsAlert` | `boolean` | No | `false` | Send matching candidate updates via SMS |
+| `frequency` | `string` | No | `"daily"` | Alert schedule: `"instant"`, `"daily"`, or `"weekly"` |
 
 #### Response `(201 Created)`
 ```json
@@ -1907,11 +2005,20 @@ Save recurring talent queries and receive email/SMS notifications when new match
   "message": "Search criteria saved successfully",
   "data": {
     "_id": "66b44ac0e7b231123a8b4711",
+    "user": "66b44a20e7b231123a8b4588",
     "name": "SF Senior React & Node Engineers",
     "searchType": "resumes",
-    "frequency": "daily",
+    "filters": {
+      "q": "React AND Node.js",
+      "location": "San Francisco, CA",
+      "experienceMin": 5
+    },
     "emailAlert": true,
-    "createdAt": "2026-08-21T11:20:00.000Z"
+    "smsAlert": false,
+    "frequency": "daily",
+    "lastAlertSentAt": null,
+    "createdAt": "2026-08-21T11:20:00.000Z",
+    "updatedAt": "2026-08-21T11:20:00.000Z"
   }
 }
 ```
@@ -1919,6 +2026,8 @@ Save recurring talent queries and receive email/SMS notifications when new match
 ---
 
 ### 7.5 List Saved Searches
+Retrieve all saved search queries and alert configs for the authenticated recruiter.
+
 - **Method / URL**: `GET /api/v1/search/saved`
 - **Auth**: `Bearer <token>`
 
@@ -1931,6 +2040,7 @@ Save recurring talent queries and receive email/SMS notifications when new match
   "data": [
     {
       "_id": "66b44ac0e7b231123a8b4711",
+      "user": "66b44a20e7b231123a8b4588",
       "name": "SF Senior React & Node Engineers",
       "searchType": "resumes",
       "filters": {
@@ -1938,8 +2048,12 @@ Save recurring talent queries and receive email/SMS notifications when new match
         "location": "San Francisco, CA",
         "experienceMin": 5
       },
+      "emailAlert": true,
+      "smsAlert": false,
       "frequency": "daily",
-      "emailAlert": true
+      "lastAlertSentAt": null,
+      "createdAt": "2026-08-21T11:20:00.000Z",
+      "updatedAt": "2026-08-21T11:20:00.000Z"
     }
   ]
 }
@@ -1948,16 +2062,22 @@ Save recurring talent queries and receive email/SMS notifications when new match
 ---
 
 ### 7.6 Delete Saved Search
+Remove a saved candidate search query.
+
 - **Method / URL**: `DELETE /api/v1/search/saved/:id`
 - **Auth**: `Bearer <token>`
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the saved search |
 
 #### Response `(200 OK)`
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Saved search deleted successfully",
-  "data": null
+  "message": "Saved search deleted successfully"
 }
 ```
 
@@ -1966,8 +2086,19 @@ Save recurring talent queries and receive email/SMS notifications when new match
 ## 8. Candidate Resume & AI Match Inspection
 
 ### 8.1 View Parsed Candidate Resume
+Inspect full structured parsed resume details for a candidate.
+- **Privacy Enforcement**:
+  - `admin`: Full unrestricted access.
+  - `employer`: Allowed if candidate profile is `public` and active, OR if candidate applied to any job posted by the employer's company. Private non-applicant resumes return `404 Not Found`.
+  - `jobseeker`: Only permitted to view their own resumes.
+
 - **Method / URL**: `GET /api/v1/resumes/:id`
 - **Auth**: `Bearer <token>`
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the resume |
 
 #### Response `(200 OK)`
 ```json
@@ -1977,32 +2108,59 @@ Save recurring talent queries and receive email/SMS notifications when new match
   "message": "Resume retrieved successfully",
   "data": {
     "_id": "66b44a80e7b231123a8b4655",
+    "user": "66b44a70e7b231123a8b4644",
     "title": "Michael_Chen_Senior_FullStack.pdf",
-    "fileUrl": "https://storage.hireengine.com/resumes/66b44a80.pdf",
+    "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/michael_chen.pdf",
+    "publicId": "resumes/michael_chen_1789106000",
     "fileType": "pdf",
+    "fileSize": 1048576,
+    "originalFileName": "Michael_Chen_Resume.pdf",
+    "isDefault": false,
     "parsedData": {
-      "name": "Michael Chen",
-      "email": "michael.chen@devmail.com",
-      "phone": "+14155551234",
-      "summary": "Full Stack Engineer with 6+ years experience...",
+      "personalInfo": {
+        "name": "Michael Chen",
+        "email": "michael.chen@devmail.com",
+        "phone": "+14155551234",
+        "location": "San Francisco, CA",
+        "linkedin": "https://linkedin.com/in/michaelchen",
+        "github": "https://github.com/michaelchen",
+        "portfolio": "https://michaelchen.dev"
+      },
+      "headline": "Senior Full Stack Cloud Engineer",
+      "summary": "Full Stack Engineer with 6+ years experience building cloud-native microservices...",
       "skills": ["React", "TypeScript", "Node.js", "AWS", "Docker", "MongoDB", "GraphQL"],
       "experience": [
         {
           "company": "ScaleTech Systems",
           "title": "Senior Software Engineer",
+          "location": "San Francisco, CA",
           "startDate": "2022-01",
           "endDate": "Present",
-          "description": "Architected distributed node microservices."
+          "current": true,
+          "description": "Architected distributed node microservices.",
+          "highlights": ["Processed $50M/year payments", "40% latency reduction"]
         }
       ],
       "education": [
         {
-          "institution": "UC Berkeley",
-          "degree": "B.S. in Computer Science",
-          "graduationYear": "2020"
+          "institution": "University of California, Berkeley",
+          "degree": "Bachelor of Science",
+          "field": "Computer Science",
+          "graduationYear": 2020
         }
-      ]
-    }
+      ],
+      "certifications": [
+        {
+          "name": "AWS Solutions Architect Associate",
+          "issuer": "Amazon Web Services",
+          "year": 2023
+        }
+      ],
+      "languages": ["English"],
+      "totalYearsOfExperience": 6.5
+    },
+    "createdAt": "2026-08-21T10:30:00.000Z",
+    "updatedAt": "2026-08-21T10:30:00.000Z"
   }
 }
 ```
@@ -2010,8 +2168,15 @@ Save recurring talent queries and receive email/SMS notifications when new match
 ---
 
 ### 8.2 AI Resume Analysis & ATS Feedback
+Generate AI-driven quality critique, ATS compatibility score, formatting feedback, and actionable coaching tips for a candidate resume using Google Gemini AI.
+
 - **Method / URL**: `GET /api/v1/resumes/:id/analysis`
 - **Auth**: `Bearer <token>`
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the resume |
 
 #### Response `(200 OK)`
 ```json
@@ -2020,13 +2185,25 @@ Save recurring talent queries and receive email/SMS notifications when new match
   "statusCode": 200,
   "message": "Resume analysis and ATS feedback generated successfully",
   "data": {
+    "resumeId": "66b44a80e7b231123a8b4655",
+    "title": "Michael_Chen_Senior_FullStack.pdf",
     "atsScore": 88,
-    "topSkills": ["React", "TypeScript", "Node.js", "Microservices", "Cloud Architecture"],
+    "summary": "Resume structure and technical content are well-formed with clear professional progression.",
     "strengths": [
-      "Quantifiable metrics in work experience",
-      "Clean formatting and clear timeline"
+      "Clear technical skill stack and cloud architecture experience",
+      "Consistent timeline across senior software engineering roles"
     ],
-    "suggestedRoles": ["Senior Full Stack Engineer", "Backend Tech Lead", "Full Stack Architect"]
+    "weaknesses": [
+      "Add more quantified revenue, latency, or throughput metrics to microservice projects"
+    ],
+    "formattingFeedback": [
+      "Clean section hierarchy and readable typography",
+      "Contact information and portfolio links easily identifiable by ATS scanners"
+    ],
+    "actionableTips": [
+      "Include measurable impact (e.g., 'reduced API latency by 40%') for leadership roles",
+      "Tailor summary keywords to match the target job description"
+    ]
   }
 }
 ```
@@ -2034,10 +2211,16 @@ Save recurring talent queries and receive email/SMS notifications when new match
 ---
 
 ### 8.3 Direct Resume-to-Job Match Analysis
-Compare any candidate resume in the database with a specific job posting.
+Compare any candidate resume in the database with a specific job posting to compute an AI match score, matching skills, missing skill gaps, and hiring recommendations.
 
 - **Method / URL**: `GET /api/v1/resumes/:id/match/:jobId`
 - **Auth**: `Bearer <token>`
+
+#### URL Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `string` | **Yes** | MongoDB ObjectId of the resume |
+| `jobId` | `string` | **Yes** | MongoDB ObjectId of the target job posting |
 
 #### Response `(200 OK)`
 ```json
@@ -2046,11 +2229,21 @@ Compare any candidate resume in the database with a specific job posting.
   "statusCode": 200,
   "message": "Job match analysis calculated successfully",
   "data": {
-    "overallMatchScore": 92,
-    "skillScore": 95,
-    "experienceScore": 90,
+    "resumeId": "66b44a80e7b231123a8b4655",
+    "jobId": "66b44a50e7b231123a8b4611",
+    "jobTitle": "Senior Full Stack Engineer (Node.js & React)",
+    "company": "66b44a20e7b231123a8b4588",
+    "matchScore": 92,
+    "summary": "Candidate matches 5 of 6 required skills with extensive cloud backend and distributed systems experience.",
     "matchedSkills": ["React", "Node.js", "TypeScript", "Docker", "AWS"],
     "missingSkills": ["Redis"],
+    "strengths": [
+      "Strong domain experience in microservices and distributed systems",
+      "Proven track record with Node.js, TypeScript, and AWS cloud architecture"
+    ],
+    "improvements": [
+      "Lacks documented experience in Redis caching clusters"
+    ],
     "recommendation": "Strong Match"
   }
 }
