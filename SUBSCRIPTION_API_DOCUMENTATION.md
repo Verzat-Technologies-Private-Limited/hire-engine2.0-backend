@@ -5,19 +5,19 @@
 ## 📑 Quick Navigation
 1. [Authentication & Base Setup](#1-authentication--base-setup)
 2. [Recruiter Checkout & Billing Flow](#2-recruiter-checkout--billing-flow)
-   - [Step 1: Fetching & Rendering Pricing Cards](#step-1-fetching--rendering-pricing-cards)
-   - [Step 2: Initiating Checkout (`POST /subscriptions`)](#step-2-initiating-checkout)
-   - [Step 3: Handling Gateway Modals (Stripe vs. Razorpay)](#step-3-handling-gateway-modals-stripe-vs-razorpay)
-   - [Step 4: Managing Subscription Status & Quota Progress Bars](#step-4-managing-subscription-status--quota-progress-bars)
-   - [Step 5: Cancelling a Subscription](#step-5-cancelling-a-subscription)
-   - [Step 6: Transaction History & Invoices Table](#step-6-transaction-history--invoices-table)
+   - [Step 1: Fetching & Rendering Pricing Cards (`GET /subscriptions/plans`)](#step-1-fetching--rendering-pricing-cards)
+   - [Step 2: Initiating Checkout Order (`POST /subscriptions`)](#step-2-initiating-checkout-order-post-subscriptions)
+   - [Step 3: Handling Gateway Modals & Verification (`POST /subscriptions/verify`)](#step-3-handling-gateway-modals--verification-post-subscriptionsverify)
+   - [Step 4: Managing Subscription Status & Quota Progress Bars (`GET /subscriptions/current`)](#step-4-managing-subscription-status--quota-progress-bars-get-subscriptionscurrent)
+   - [Step 5: Cancelling a Subscription (`DELETE /subscriptions`)](#step-5-cancelling-a-subscription-delete-subscriptions)
+   - [Step 6: Transaction History & Invoices (`GET /subscriptions/transactions`)](#step-6-transaction-history--invoices)
 3. [Admin Dashboard Management Flow](#3-admin-dashboard-management-flow)
    - [Plan Catalog CRUD](#plan-catalog-crud)
    - [Processing Refunds](#processing-refunds)
    - [Platform Revenue Dashboard](#platform-revenue-dashboard)
 4. [Complete TypeScript Type Definitions](#4-complete-typescript-type-definitions)
 5. [Error Handling & UI Toast Mapping](#5-error-handling--ui-toast-mapping)
-6. [Ready-to-Use API Service Code (Axios / TypeScript)](#6-ready-to-use-api-service-code)
+6. [Ready-to-Use API Service Code (Axios / TypeScript)](#6-ready-to-use-api-service-code-axios--typescript)
 
 ---
 
@@ -45,14 +45,14 @@
 
 ```
 ┌─────────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
-│ 1. Render Pricing Cards │ ───► │ 2. Click "Subscribe"    │ ───► │ 3. Open Payment Modal   │
-│    (GET /plans?country) │      │ (POST /subscriptions)   │      │ (Stripe or Razorpay)    │
+│ 1. Render Pricing Cards │ ───► │ 2. Click "Subscribe"    │ ───► │ 3. Gateway Modal &      │
+│ (GET /plans?countryCode)│      │ (POST /subscriptions)   │      │ POST /verify            │
 └─────────────────────────┘      └─────────────────────────┘      └────────────┬────────────┘
-                                                                               │ Success
+                                                                               │ Succeeded
                                                                                ▼
 ┌─────────────────────────┐                                       ┌─────────────────────────┐
-│ 5. View Quota Badges &  │ ◄──────────────────────────────────── │ 4. Refresh Sub State    │
-│    Billing History      │                                       │ (Show Active Plan)      │
+│ 5. View Quotas &        │ ◄──────────────────────────────────── │ 4. Active Subscription  │
+│    Invoice History      │                                       │ (GET /current)          │
 └─────────────────────────┘                                       └─────────────────────────┘
 ```
 
@@ -133,7 +133,7 @@ GET /api/v1/subscriptions/plans?countryCode=IN
 
 ---
 
-### Step 2: Initiating Checkout
+### Step 2: Initiating Checkout Order (POST /subscriptions)
 
 When the recruiter clicks "Upgrade" or "Subscribe", send the company ID and plan ID.
 
@@ -306,7 +306,7 @@ Fetch the current subscription status directly via `GET /api/v1/subscriptions/cu
 
 ---
 
-### Step 5: Cancelling a Subscription
+### Step 5: Cancelling a Subscription (DELETE /subscriptions)
 
 - **Endpoint:** `DELETE /subscriptions`
 - **Auth:** Required (`role: 'employer'` or `'admin'`)
@@ -375,6 +375,64 @@ Fetch the current subscription status directly via `GET /api/v1/subscriptions/cu
 - **Endpoint:** `GET /subscriptions/transactions/:id/invoice`
 - **Auth:** Required (`role: 'employer'` or `'admin'`)
 - Returns complete tax-compliant invoice breakdown with legal entity seller information, buyer registration identifiers (GSTIN/EIN), SAC codes, and segregated taxes.
+
+##### Response Example (`200 OK`):
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Tax invoice retrieved successfully",
+  "data": {
+    "invoiceNumber": "INV-2026-00001",
+    "date": "2026-09-01T12:00:00.000Z",
+    "status": "succeeded",
+    "currency": "INR",
+    "paymentProvider": "razorpay",
+    "externalPaymentId": "pay_P1234567890",
+    "description": "Subscription Order: Growth Recruiter Plan",
+    "seller": {
+      "legalEntity": "Hire Engine India Private Limited",
+      "address": "Plot 42, Cyber City, Gurugram, Haryana 122002, India",
+      "state": "HR",
+      "gstin": "06AAACH7409R1ZZ",
+      "pan": "AAACH7409R",
+      "sacCode": "998311"
+    },
+    "buyer": {
+      "companyId": "64f1a2b3c4d5e6f7a8b9c0d1",
+      "name": "Acme Innovations Pvt Ltd",
+      "country": "IN",
+      "address": {
+        "street": "123 Tech Park, Phase 1",
+        "city": "Bengaluru",
+        "state": "KA",
+        "zip": "560001"
+      },
+      "taxIdentifier": "29ABCDE1234F1Z5"
+    },
+    "lineItems": [
+      {
+        "description": "Subscription Order: Growth Recruiter Plan",
+        "sacCode": "998311",
+        "baseAmount": 7999,
+        "taxAmount": 1440,
+        "totalAmount": 9439
+      }
+    ],
+    "taxBreakdown": {
+      "baseAmount": 7999,
+      "CGST": 0,
+      "SGST": 0,
+      "IGST": 1440,
+      "totalGST": 1440,
+      "rate": "18%",
+      "taxType": "interstate",
+      "sacCode": "998311"
+    },
+    "totalAmount": 9439
+  }
+}
+```
 
 
 ---
@@ -496,10 +554,13 @@ export type TransactionStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export interface TaxBreakdown {
   baseAmount: number;
   rate: string;
-  // India (GST) fields:
+  // India (GST) segregated fields:
   CGST?: number;
   SGST?: number;
+  IGST?: number;
   totalGST?: number;
+  taxType?: 'intrastate' | 'interstate';
+  sacCode?: string;
   // US / International fields:
   salesTax?: number;
   note?: string;
@@ -534,7 +595,6 @@ export interface Subscription {
   status: SubscriptionStatus;
   paymentProvider: PaymentProvider;
   externalSubscriptionId?: string;
-  externalCustomerId?: string;
   jobPostQuota: number;
   jobPostsUsed: number;
   resumeSearchQuota: number;
@@ -548,18 +608,64 @@ export interface Subscription {
   updatedAt: string;
 }
 
-export interface SubscribeOrderResponse {
-  subscription: Subscription;
+export interface CreateOrderResponse {
   order: {
     orderId: string;
     providerData: {
       orderId?: string;
-      amount?: number;
+      amount?: number; // In smallest currency unit (paise or cents)
       currency?: string;
-      keyId?: string; // Present for Razorpay
-      clientSecret?: string; // Present for Stripe
+      keyId?: string; // Present for Razorpay checkout.js
+      clientSecret?: string; // Present for Stripe Elements
       paymentIntentId?: string;
     };
+  };
+  transactionId: string;
+  plan: {
+    id: string;
+    name: string;
+    basePrice: number;
+    taxAmount: number;
+    totalAmount: number;
+    currency: string;
+    taxBreakdown: TaxBreakdown;
+  };
+}
+
+export interface VerifyPaymentPayload {
+  companyId: string;
+  paymentProvider: PaymentProvider;
+  // Razorpay verification fields:
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  razorpay_signature?: string;
+  // Stripe verification fields:
+  paymentIntentId?: string;
+}
+
+export interface VerifyPaymentResponse {
+  subscription: Subscription | null;
+  transaction: Transaction;
+  alreadyProcessed?: boolean;
+}
+
+export interface QuotaDetail {
+  total: number | 'unlimited';
+  used: number;
+  remaining: number | 'unlimited';
+  percentageUsed: number;
+}
+
+export interface CurrentSubscriptionResponse {
+  active: boolean;
+  status: SubscriptionStatus | 'none';
+  daysRemaining: number;
+  subscription: Subscription | null;
+  plan: PlanItem | null;
+  quotas: {
+    jobs: QuotaDetail;
+    resumes: QuotaDetail;
+    hasResumeDBAccess: boolean;
   };
 }
 
@@ -581,11 +687,67 @@ export interface Transaction {
   updatedAt: string;
 }
 
+export interface PaginatedTransactionsResponse {
+  docs: Transaction[];
+  meta: {
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalDocs: number;
+      limit: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+  };
+}
+
+export interface InvoiceSeller {
+  legalEntity: string;
+  address: string;
+  state?: string;
+  gstin?: string;
+  pan?: string;
+  ein?: string;
+  sacCode?: string;
+}
+
+export interface InvoiceBuyer {
+  companyId: string;
+  name: string;
+  country?: string;
+  address?: Record<string, unknown>;
+  taxIdentifier: string;
+}
+
+export interface InvoiceLineItem {
+  description: string;
+  sacCode: string;
+  baseAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+}
+
+export interface InvoiceResponse {
+  invoiceNumber: string;
+  date: string;
+  status: TransactionStatus;
+  currency: string;
+  paymentProvider: PaymentProvider;
+  externalPaymentId?: string;
+  description: string;
+  seller: InvoiceSeller;
+  buyer: InvoiceBuyer;
+  lineItems: InvoiceLineItem[];
+  taxBreakdown: TaxBreakdown;
+  totalAmount: number;
+}
+
 export interface AdminPlanPayload {
   planId: string;
   name: string;
   description?: string;
   price: number;
+  prices?: Record<string, number>;
   jobQuota?: number;
   resumeQuota?: number;
   hasResumeDB?: boolean;
@@ -601,15 +763,21 @@ export interface AdminPlanPayload {
 | HTTP Code | Backend Message | Suggested Toast / Frontend Handling |
 | :--- | :--- | :--- |
 | `400 Bad Request` | `Invalid or inactive subscription plan` | Show alert: "This plan is no longer available. Please select another." |
+| `400 Bad Request` | `Payment verification failed or was not approved by payment gateway` | Toast error: "Payment verification failed. Please contact support or retry." |
+| `400 Bad Request` | `No active subscription found to cancel` | Toast info: "No active subscription found to cancel." |
 | `403 Forbidden` | `An active subscription is required to post jobs` | Open the Plan Upgrade Modal / Redirect to `/recruiter/billing`. |
 | `403 Forbidden` | `Job posting quota exceeded for your current subscription plan. Please upgrade.` | Toast: "You have used all your job posts for this cycle. Upgrade to post more." |
-| `403 Forbidden` | `You do not have permission to manage billing for this company` | Toast: "Admin permissions required to modify company billing." |
-| `404 Not Found` | `Company not found` | Redirect to company setup. |
-| `409 Conflict` | `Cannot delete plan "X". Y active subscription(s) are using it.` | Open confirmation modal: "Cannot delete an active plan. Deactivate it instead?" |
+| `403 Forbidden` | `Your current plan does not include candidate database search access. Please upgrade.` | Open Plan Upgrade Modal: "Candidate resume search requires a Growth or Enterprise plan." |
+| `403 Forbidden` | `Resume search quota exceeded for your current subscription plan. Please upgrade.` | Toast: "You have used all resume searches for this billing cycle. Upgrade to search candidates." |
+| `403 Forbidden` | `You do not have permission to manage billing for this company` | Toast: "Admin or owner permissions required to modify company billing." |
+| `404 Not Found` | `Company not found or you are not associated with any company` | Redirect to company onboarding setup. |
+| `404 Not Found` | `Pending transaction record not found for this payment` | Toast: "Could not find corresponding pending order for verification." |
+| `404 Not Found` | `Transaction not found` | Toast error: "Transaction record does not exist." |
+| `409 Conflict` | `Cannot delete plan "X". Y active subscription(s) are using it. Deactivate the plan instead.` | Open confirmation modal: "Cannot delete an active plan. Deactivate it instead?" |
 
 ---
 
-## 6. Ready-to-Use API Service Code
+## 6. Ready-to-Use API Service Code (Axios / TypeScript)
 
 Copy-paste this client into your frontend (e.g. `src/services/subscriptionService.ts`):
 
@@ -617,9 +785,14 @@ Copy-paste this client into your frontend (e.g. `src/services/subscriptionServic
 import axios from 'axios';
 import type { 
   PlansResponse, 
-  SubscribeOrderResponse, 
+  CreateOrderResponse,
+  VerifyPaymentPayload,
+  VerifyPaymentResponse,
+  CurrentSubscriptionResponse,
   Subscription, 
   Transaction,
+  PaginatedTransactionsResponse,
+  InvoiceResponse,
   AdminPlanPayload 
 } from '../types/subscription';
 
@@ -629,7 +802,7 @@ const api = axios.create({
 
 // Attach token dynamically from your auth store
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -639,6 +812,9 @@ api.interceptors.request.use((config) => {
 export const subscriptionService = {
   // ── Recruiter Methods ─────────────────────────────────
   
+  /**
+   * Fetch available localized subscription plans with tax breakdown.
+   */
   async getPlans(countryCode = 'US'): Promise<PlansResponse> {
     const res = await api.get<{ data: PlansResponse }>(`/subscriptions/plans`, {
       params: { countryCode },
@@ -646,25 +822,78 @@ export const subscriptionService = {
     return res.data.data;
   },
 
-  async subscribeCompany(companyId: string, planId: string): Promise<SubscribeOrderResponse> {
-    const res = await api.post<{ data: SubscribeOrderResponse }>(`/subscriptions`, {
+  /**
+   * Step 1: Create subscription order and pending transaction.
+   */
+  async createSubscriptionOrder(companyId: string, planId: string): Promise<CreateOrderResponse> {
+    const res = await api.post<{ data: CreateOrderResponse }>(`/subscriptions`, {
       companyId,
       planId,
     });
     return res.data.data;
   },
 
-  async cancelSubscription(companyId: string): Promise<Subscription> {
-    const res = await api.delete<{ data: Subscription }>(`/subscriptions`, {
-      data: { companyId },
+  /**
+   * Step 2: Cryptographically verify payment signature and activate subscription.
+   */
+  async verifyPayment(payload: VerifyPaymentPayload): Promise<VerifyPaymentResponse> {
+    const res = await api.post<{ data: VerifyPaymentResponse }>(`/subscriptions/verify`, payload);
+    return res.data.data;
+  },
+
+  /**
+   * Fetch current active subscription, remaining days, and live quota usage progress.
+   */
+  async getCurrentSubscription(companyId?: string): Promise<CurrentSubscriptionResponse> {
+    const res = await api.get<{ data: CurrentSubscriptionResponse }>(`/subscriptions/current`, {
+      params: companyId ? { companyId } : {},
     });
     return res.data.data;
   },
 
-  async getTransactions(companyId: string): Promise<Transaction[]> {
-    const res = await api.get<{ data: Transaction[] }>(`/subscriptions/transactions`, {
-      params: { companyId },
+  /**
+   * Cancel an active subscription.
+   */
+  async cancelSubscription(companyId: string, reason?: string): Promise<Subscription> {
+    const res = await api.delete<{ data: Subscription }>(`/subscriptions`, {
+      data: { companyId, reason },
     });
+    return res.data.data;
+  },
+
+  /**
+   * Get paginated transaction history with status/date filtering.
+   */
+  async getTransactions(
+    companyId?: string,
+    queryParams?: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      type?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ): Promise<PaginatedTransactionsResponse> {
+    const res = await api.get<{ data: Transaction[]; meta: PaginatedTransactionsResponse['meta'] }>(
+      `/subscriptions/transactions`,
+      {
+        params: { ...(companyId ? { companyId } : {}), ...queryParams },
+      }
+    );
+    return {
+      docs: res.data.data,
+      meta: res.data.meta,
+    };
+  },
+
+  /**
+   * Get tax-compliant B2B invoice with legal entity details, SAC code, and GST/EIN.
+   */
+  async getInvoice(transactionId: string): Promise<InvoiceResponse> {
+    const res = await api.get<{ data: InvoiceResponse }>(
+      `/subscriptions/transactions/${transactionId}/invoice`
+    );
     return res.data.data;
   },
 
