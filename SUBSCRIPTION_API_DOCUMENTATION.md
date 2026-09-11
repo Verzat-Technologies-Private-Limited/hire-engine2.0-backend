@@ -156,21 +156,6 @@ When the recruiter clicks "Upgrade" or "Subscribe", send the company ID and plan
   "statusCode": 201,
   "message": "Subscription order created successfully",
   "data": {
-    "subscription": {
-      "_id": "673f1a2b3c4d5e6f7a8b9c99",
-      "company": "64f1a2b3c4d5e6f7a8b9c0d1",
-      "plan": "growth-monthly",
-      "status": "active",
-      "paymentProvider": "razorpay",
-      "externalSubscriptionId": "order_OD1234567890",
-      "jobPostQuota": 0,
-      "jobPostsUsed": 0,
-      "resumeSearchQuota": 500,
-      "resumeSearchesUsed": 0,
-      "hasResumeDBAccess": true,
-      "currentPeriodStart": "2026-09-01T12:00:00.000Z",
-      "currentPeriodEnd": "2026-10-01T12:00:00.000Z"
-    },
     "order": {
       "orderId": "order_OD1234567890",
       "providerData": {
@@ -179,6 +164,24 @@ When the recruiter clicks "Upgrade" or "Subscribe", send the company ID and plan
         "currency": "INR",
         "keyId": "rzp_test_51Abcdefghijk"
       }
+    },
+    "transactionId": "673f1b4c3d2e1f0a9b8c7d6e",
+    "plan": {
+      "id": "growth-monthly",
+      "name": "Growth Recruiter Plan",
+      "basePrice": 7999,
+      "taxAmount": 1440,
+      "totalAmount": 9439,
+      "currency": "INR",
+      "taxBreakdown": {
+        "baseAmount": 7999,
+        "CGST": 720,
+        "SGST": 720,
+        "totalGST": 1440,
+        "rate": "18%",
+        "taxType": "intrastate",
+        "sacCode": "998311"
+      }
     }
   }
 }
@@ -186,15 +189,15 @@ When the recruiter clicks "Upgrade" or "Subscribe", send the company ID and plan
 
 ---
 
-### Step 3: Handling Gateway Modals (Stripe vs. Razorpay)
+### Step 3: Handling Gateway Modals & Verification (`POST /subscriptions/verify`)
 
-Inspect `data.order.providerData` to know which modal SDK to invoke:
+Inspect `data.order.providerData` to invoke the appropriate gateway modal, then call `POST /subscriptions/verify` to cryptographically activate the subscription.
 
 #### A. If Provider is Razorpay (`providerData.keyId` exists):
 Include the Razorpay script in your HTML: `<script src="https://checkout.razorpay.com/v1/checkout.js"></script>`
 
 ```javascript
-const handleRazorpayPayment = (orderData, userProfile) => {
+const handleRazorpayPayment = (orderData, userProfile, companyId) => {
   const options = {
     key: orderData.providerData.keyId,
     amount: orderData.providerData.amount, // in paise
@@ -207,10 +210,21 @@ const handleRazorpayPayment = (orderData, userProfile) => {
       email: userProfile.email,
     },
     theme: { color: "#4F46E5" },
-    handler: function (response) {
-      // Payment Successful!
-      toast.success("Payment completed successfully!");
-      router.push("/recruiter/dashboard");
+    handler: async function (response) {
+      // Step 3B: Cryptographically verify on backend
+      try {
+        const verifyRes = await axios.post('/api/v1/subscriptions/verify', {
+          companyId,
+          paymentProvider: 'razorpay',
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+        });
+        toast.success("Subscription activated successfully!");
+        router.push("/recruiter/dashboard");
+      } catch (err) {
+        toast.error("Payment verification failed. Please contact support.");
+      }
     },
   };
 
@@ -223,49 +237,71 @@ const handleRazorpayPayment = (orderData, userProfile) => {
 Use `@stripe/stripe-js` / `@stripe/react-stripe-js`:
 
 ```javascript
-import { useStripe, useElements } from '@stripe/react-stripe-js';
-
-const handleStripePayment = async (clientSecret) => {
+const handleStripePayment = async (clientSecret, companyId) => {
   const result = await stripe.confirmPayment({
     elements,
     clientSecret,
-    confirmParams: {
-      return_url: `${window.location.origin}/recruiter/billing/success`,
-    },
+    redirect: 'if_required',
   });
 
   if (result.error) {
     toast.error(result.error.message);
+  } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+    await axios.post('/api/v1/subscriptions/verify', {
+      companyId,
+      paymentProvider: 'stripe',
+      paymentIntentId: result.paymentIntent.id,
+    });
+    toast.success("Subscription activated successfully!");
+    router.push("/recruiter/dashboard");
   }
 };
 ```
 
 ---
 
-### Step 4: Managing Subscription Status & Quota Progress Bars
+### Step 4: Managing Subscription Status & Quota Progress Bars (`GET /subscriptions/current`)
 
-When rendering the recruiter dashboard, calculate quotas from the subscription object:
+Fetch the current subscription status directly via `GET /api/v1/subscriptions/current?companyId=...`:
 
-| Status Value | Badge Color | Meaning & Required UI Action |
-| :--- | :--- | :--- |
-| `active` | 🟢 Green | Active subscription. Full access to job posting and resume search. |
-| `past_due` | 🟡 Yellow | Payment failed / Grace period. Display banner: *"Payment past due. Please update payment method."* Posting is still allowed. |
-| `cancelled` | 🔴 Red | Plan was cancelled. User retains access until `currentPeriodEnd`. Show *"Renews until [Date]"*. |
-| `expired` | ⚫ Gray | No active subscription. Block job post button and show *"Upgrade Plan"* CTA. |
+- **Endpoint:** `GET /subscriptions/current`
+- **Auth:** Required (`role: 'employer'` or `'admin'`)
 
-#### Calculating Quota UI:
-```javascript
-// Job Post Quota
-const isUnlimitedJobs = subscription.jobPostQuota === 0;
-const jobPercentage = isUnlimitedJobs 
-  ? 0 
-  : (subscription.jobPostsUsed / subscription.jobPostQuota) * 100;
-
-// Resume Search Quota
-const isUnlimitedResumes = subscription.resumeSearchQuota === 0;
-const resumePercentage = isUnlimitedResumes 
-  ? 0 
-  : (subscription.resumeSearchesUsed / subscription.resumeSearchQuota) * 100;
+#### Response Example (`200 OK`):
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Current subscription retrieved successfully",
+  "data": {
+    "active": true,
+    "status": "active",
+    "daysRemaining": 29,
+    "subscription": {
+      "_id": "673f1a2b3c4d5e6f7a8b9c99",
+      "company": "64f1a2b3c4d5e6f7a8b9c0d1",
+      "plan": "growth-monthly",
+      "status": "active",
+      "currentPeriodStart": "2026-09-01T12:00:00.000Z",
+      "currentPeriodEnd": "2026-10-01T12:00:00.000Z"
+    },
+    "quotas": {
+      "jobs": {
+        "total": 10,
+        "used": 2,
+        "remaining": 8,
+        "percentageUsed": 20
+      },
+      "resumes": {
+        "total": 100,
+        "used": 15,
+        "remaining": 85,
+        "percentageUsed": 15
+      },
+      "hasResumeDBAccess": true
+    }
+  }
+}
 ```
 
 ---
@@ -278,31 +314,17 @@ const resumePercentage = isUnlimitedResumes
 #### Request Payload:
 ```json
 {
-  "companyId": "64f1a2b3c4d5e6f7a8b9c0d1"
-}
-```
-
-#### Response Example (`200 OK`):
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Subscription cancelled successfully",
-  "data": {
-    "_id": "673f1a2b3c4d5e6f7a8b9c99",
-    "company": "64f1a2b3c4d5e6f7a8b9c0d1",
-    "status": "cancelled",
-    "cancelledAt": "2026-09-01T12:30:00.000Z",
-    "currentPeriodEnd": "2026-10-01T12:00:00.000Z"
-  }
+  "companyId": "64f1a2b3c4d5e6f7a8b9c0d1",
+  "reason": "Temporary downsizing"
 }
 ```
 
 ---
 
-### Step 6: Transaction History & Invoices Table
+### Step 6: Transaction History & Invoices
 
-- **Endpoint:** `GET /subscriptions/transactions?companyId=64f1a2b3c4d5e6f7a8b9c0d1`
+#### A. List Transactions (Paginated & Filterable)
+- **Endpoint:** `GET /subscriptions/transactions?companyId=...&page=1&limit=10&status=succeeded`
 - **Auth:** Required (`role: 'employer'` or `'admin'`)
 
 #### Response Example (`200 OK`):
@@ -321,21 +343,39 @@ const resumePercentage = isUnlimitedResumes
       "status": "succeeded",
       "paymentProvider": "razorpay",
       "externalPaymentId": "pay_P1234567890",
-      "description": "Subscribed to Growth Recruiter Plan",
+      "description": "Subscription Order: Growth Recruiter Plan",
       "taxAmount": 1440,
       "taxBreakdown": {
         "baseAmount": 7999,
         "CGST": 720,
         "SGST": 720,
         "totalGST": 1440,
-        "rate": "18%"
+        "rate": "18%",
+        "taxType": "intrastate",
+        "sacCode": "998311"
       },
-      "invoiceNumber": "INV-2026-0091",
+      "invoiceNumber": "INV-2026-00001",
       "createdAt": "2026-09-01T12:00:00.000Z"
     }
-  ]
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 1,
+      "totalDocs": 1,
+      "limit": 10,
+      "hasNextPage": false,
+      "hasPrevPage": false
+    }
+  }
 }
 ```
+
+#### B. Download B2B Tax Invoice
+- **Endpoint:** `GET /subscriptions/transactions/:id/invoice`
+- **Auth:** Required (`role: 'employer'` or `'admin'`)
+- Returns complete tax-compliant invoice breakdown with legal entity seller information, buyer registration identifiers (GSTIN/EIN), SAC codes, and segregated taxes.
+
 
 ---
 

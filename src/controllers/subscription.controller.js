@@ -13,15 +13,32 @@ const subscribe = asyncHandler(async (req, res) => {
   ApiResponse.created('Subscription order created successfully', result).send(res);
 });
 
+const verifyPayment = asyncHandler(async (req, res) => {
+  const { companyId, ...paymentData } = req.body;
+  const result = await subscriptionService.verifyPayment(req.user._id, companyId, paymentData);
+  ApiResponse.ok('Payment verified and subscription activated successfully', result).send(res);
+});
+
+const getCurrentSubscription = asyncHandler(async (req, res) => {
+  const result = await subscriptionService.getCurrentSubscription(req.user._id, req.query.companyId);
+  ApiResponse.ok('Current subscription retrieved successfully', result).send(res);
+});
+
 const cancel = asyncHandler(async (req, res) => {
-  const { companyId } = req.body;
-  const subscription = await subscriptionService.cancelSubscription(req.user._id, companyId);
+  const { companyId, reason } = req.body;
+  const subscription = await subscriptionService.cancelSubscription(req.user._id, companyId, reason);
   ApiResponse.ok('Subscription cancelled successfully', subscription).send(res);
 });
 
 const getTransactions = asyncHandler(async (req, res) => {
-  const transactions = await subscriptionService.getCompanyTransactions(req.query.companyId);
-  ApiResponse.ok('Company transaction history retrieved', transactions).send(res);
+  const { companyId, ...queryParams } = req.query;
+  const result = await subscriptionService.getCompanyTransactions(req.user._id, companyId, queryParams);
+  ApiResponse.ok('Company transaction history retrieved', result.docs, result.meta).send(res);
+});
+
+const getInvoice = asyncHandler(async (req, res) => {
+  const invoice = await subscriptionService.getTransactionInvoice(req.user._id, req.params.id);
+  ApiResponse.ok('Transaction tax invoice retrieved successfully', invoice).send(res);
 });
 
 const handleWebhook = asyncHandler(async (req, res) => {
@@ -33,7 +50,10 @@ const handleWebhook = asyncHandler(async (req, res) => {
 module.exports = {
   getPlans,
   subscribe,
+  verifyPayment,
+  getCurrentSubscription,
   cancel,
   getTransactions,
+  getInvoice,
   handleWebhook,
 };

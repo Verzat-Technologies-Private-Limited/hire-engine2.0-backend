@@ -97,8 +97,8 @@ class IndiaPlugin extends BaseCountryPlugin {
     return getTaxConfig();
   }
 
-  calculateTax(amount) {
-    return calculateTax(amount);
+  calculateTax(amount, context) {
+    return calculateTax(amount, context);
   }
 
   // ── Payment ─────────────────────────────────────

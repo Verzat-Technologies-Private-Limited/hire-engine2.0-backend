@@ -12,8 +12,8 @@ const logger = require('../../config/logger');
  * Adding a new country = adding a new folder. Nothing else to change.
  */
 
-/** @type {Map<string, import('./base.plugin')>} */
-const registry = new Map();
+/** @type {Record<string, import('./base.plugin')>} */
+const registry = {};
 let loaded = false;
 
 /**
@@ -48,17 +48,19 @@ function loadPlugins() {
         continue;
       }
 
-      registry.set(plugin.code.toUpperCase(), plugin);
+      registry[plugin.code.toUpperCase()] = plugin;
       logger.info(`Country plugin loaded: ${plugin.code} (${plugin.name})`);
     } catch (error) {
       logger.error(`Failed to load country plugin "${entry.name}"`, {
         error: error.message,
+        stack: error.stack,
       });
     }
+
   }
 
   loaded = true;
-  logger.info(`Country plugin registry: ${registry.size} plugins loaded`);
+  logger.info(`Country plugin registry: ${Object.keys(registry).length} plugins loaded`);
 }
 
 /**
@@ -71,11 +73,11 @@ function getCountryPlugin(countryCode) {
   loadPlugins(); // Ensure plugins are loaded (idempotent)
 
   const code = countryCode.toUpperCase();
-  const plugin = registry.get(code);
+  const plugin = registry[code];
 
   if (!plugin) {
     const ApiError = require('../../utils/ApiError');
-    const available = [...registry.keys()].join(', ');
+    const available = Object.keys(registry).join(', ');
     throw ApiError.badRequest(
       `Country "${code}" is not supported. Available: ${available || 'none'}`
     );
@@ -90,7 +92,7 @@ function getCountryPlugin(countryCode) {
  */
 function getAllCountryPlugins() {
   loadPlugins();
-  return [...registry.values()].map((p) => ({
+  return Object.values(registry).map((p) => ({
     code: p.code,
     name: p.name,
     currency: p.currency,
@@ -106,8 +108,9 @@ function getAllCountryPlugins() {
  */
 function isCountrySupported(countryCode) {
   loadPlugins();
-  return registry.has(countryCode.toUpperCase());
+  return Boolean(registry[countryCode.toUpperCase()]);
 }
+
 
 module.exports = {
   getCountryPlugin,

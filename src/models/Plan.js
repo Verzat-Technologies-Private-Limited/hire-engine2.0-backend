@@ -30,6 +30,13 @@ const planSchema = new mongoose.Schema(
       min: [0, 'Price cannot be negative'],
     },
 
+    // Multi-country / Multi-currency price matrix (in smallest unit of currency, e.g., { USD: 29900, INR: 1999900 })
+    prices: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+
     jobQuota: {
       type: Number,
       default: 0, // 0 = unlimited
@@ -74,6 +81,36 @@ const planSchema = new mongoose.Schema(
 // ── Indexes ─────────────────────────────────────────
 planSchema.index({ planId: 1 }, { unique: true });
 planSchema.index({ isActive: 1 });
+
+// ── Instance Methods ────────────────────────────────
+
+/**
+ * Get the price for a specific currency in smallest unit.
+ * Uses currency-specific price if defined; otherwise performs parity conversion.
+ * @param {string} currency - 'USD', 'INR', etc.
+ * @returns {number} Amount in smallest unit (cents, paise, etc.)
+ */
+planSchema.methods.getPriceForCurrency = function (currency = 'USD') {
+  const curr = currency.toUpperCase();
+  if (this.prices && this.prices instanceof Map && this.prices.has(curr)) {
+    return this.prices.get(curr);
+  }
+  if (this.prices && typeof this.prices === 'object' && this.prices[curr] !== undefined) {
+    return this.prices[curr];
+  }
+
+  // If currency is USD, return the base price
+  if (curr === 'USD') {
+    return this.price;
+  }
+
+  // Parity fallback: if INR and no INR price specified, convert based on standard reference rate (1 USD ~ 83 INR)
+  if (curr === 'INR') {
+    return Math.round((this.price / 100) * 83 * 100); // dollars to INR paise
+  }
+
+  return this.price;
+};
 
 const Plan = mongoose.model('Plan', planSchema);
 

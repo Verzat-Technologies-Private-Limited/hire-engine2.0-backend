@@ -1,6 +1,8 @@
 const mockSendEmail = jest.fn().mockResolvedValue({ success: true });
 const mockSendBulkEmail = jest.fn().mockResolvedValue({ success: true });
 
+
+
 jest.mock('../adapters/email', () => ({
   getEmailAdapter: () => ({
     sendEmail: mockSendEmail,

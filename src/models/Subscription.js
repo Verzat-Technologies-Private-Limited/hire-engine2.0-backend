@@ -124,6 +124,15 @@ subscriptionSchema.methods.hasResumeSearchQuota = function () {
   return this.resumeSearchesUsed < this.resumeSearchQuota;
 };
 
+/**
+ * Check if the subscription is currently active and within valid period.
+ * @returns {boolean}
+ */
+subscriptionSchema.methods.isCurrentlyActive = function () {
+  const activeStatuses = ['active', 'past_due'];
+  return activeStatuses.includes(this.status) && new Date(this.currentPeriodEnd) >= new Date();
+};
+
 const Subscription = mongoose.model('Subscription', subscriptionSchema);
 
 module.exports = Subscription;

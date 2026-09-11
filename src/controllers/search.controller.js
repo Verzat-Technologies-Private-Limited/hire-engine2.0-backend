@@ -13,7 +13,7 @@ const searchJobs = asyncHandler(async (req, res) => {
 });
 
 const searchResumes = asyncHandler(async (req, res) => {
-  const result = await searchService.searchResumes(req.query);
+  const result = await searchService.searchResumes(req.query, req.user);
   ApiResponse.ok('Resume search results retrieved', result.docs, result.meta).send(res);
 });
 

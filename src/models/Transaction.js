@@ -108,6 +108,7 @@ const transactionSchema = new mongoose.Schema(
 transactionSchema.index({ company: 1, createdAt: -1 });
 transactionSchema.index({ status: 1, createdAt: -1 });
 transactionSchema.index({ externalPaymentId: 1 });
+transactionSchema.index({ invoiceNumber: 1 }, { sparse: true });
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

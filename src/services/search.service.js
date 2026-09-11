@@ -260,9 +260,51 @@ async function _keywordSearchJobs(searchParams) {
  *   - hybrid: Runs both keyword + semantic, merges and re-ranks by combined score
  *
  * @param {object} searchParams
+ * @param {object} [user] - Authenticated user performing the search
  * @returns {Promise<object>}
  */
-async function searchResumes(searchParams) {
+async function searchResumes(searchParams, user = null) {
+  // Enforce subscription quota & resume DB permission for employers
+  if (user && user.role === 'employer') {
+    const Company = require('../models/Company');
+    const Subscription = require('../models/Subscription');
+
+    const company = await Company.findOne({
+      $or: [{ owner: user._id }, { 'teamMembers.user': user._id }],
+    });
+
+    if (!company) {
+      throw ApiError.forbidden('You must belong to a company to search candidate resumes');
+    }
+
+    const subscription = await Subscription.findOne({
+      company: company._id,
+      status: { $in: ['active', 'past_due'] },
+    });
+
+    if (!subscription || !subscription.isCurrentlyActive()) {
+      throw ApiError.forbidden(
+        'An active subscription is required to search candidate resumes. Please subscribe to a plan.'
+      );
+    }
+
+    if (!subscription.hasResumeDBAccess) {
+      throw ApiError.forbidden(
+        'Resume database search access is not included in your current subscription plan. Please upgrade.'
+      );
+    }
+
+    if (!subscription.hasResumeSearchQuota()) {
+      throw ApiError.forbidden(
+        'Resume search quota exceeded for your current subscription plan. Please upgrade.'
+      );
+    }
+
+    // Increment resume searches used
+    subscription.resumeSearchesUsed = (subscription.resumeSearchesUsed || 0) + 1;
+    await subscription.save();
+  }
+
   const {
     q,
     skills,
