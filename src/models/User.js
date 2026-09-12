@@ -247,6 +247,17 @@ userSchema.statics.isEmailTaken = async function (email) {
   return !!user;
 };
 
+/**
+ * Hash a token (SHA-256) for secure DB storage.
+ * @param {string} token
+ * @returns {string}
+ */
+userSchema.statics.hashToken = function (token) {
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(token).digest('hex');
+};
+
+
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

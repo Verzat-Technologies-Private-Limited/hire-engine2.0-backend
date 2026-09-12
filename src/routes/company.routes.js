@@ -9,6 +9,10 @@ const {
   updateCompanySchema,
   addTeamMemberSchema,
   updateTeamMemberSchema,
+  inviteTeamMemberSchema,
+  acceptInvitationSchema,
+  matchDomainSchema,
+  requestJoinSchema,
   uploadCompanyDocumentSchema,
   sendPhoneOtpSchema,
   verifyPhoneOtpSchema,
@@ -17,10 +21,19 @@ const { uploadDocument } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 
+// ── Public Routes (Domain lookup & Invitation acceptance) ────────
+router.get('/lookup/domain', validate(matchDomainSchema), companyController.matchDomain);
+router.get('/invitations/:token', companyController.getInvitationByToken);
+router.post(
+  '/invitations/:token/accept',
+  validate(acceptInvitationSchema),
+  companyController.acceptInvitation
+);
+
 // Public route to view company profile
 router.get('/:id', companyController.getCompany);
 
-// Protected routes
+// ── Protected Routes ──────────────────────────────────────────────
 router.use(authenticate);
 
 // Gap 3: Phone verification OTP routes
@@ -56,4 +69,18 @@ router.post('/:id/team', authorize('employer', 'admin'), validate(addTeamMemberS
 router.patch('/:id/team/:userId', authorize('employer', 'admin'), validate(updateTeamMemberSchema), companyController.updateTeamMemberPermissions);
 router.delete('/:id/team/:userId', authorize('employer', 'admin'), companyController.removeTeamMember);
 
+// Team invitation routes (Owner only)
+router.post(
+  '/:id/invitations',
+  authorize('employer', 'admin'),
+  validate(inviteTeamMemberSchema),
+  companyController.inviteTeamMember
+);
+router.get('/:id/invitations', authorize('employer', 'admin'), companyController.getInvitations);
+router.delete('/:id/invitations/:inviteId', authorize('employer', 'admin'), companyController.revokeInvitation);
+
+// Domain join request
+router.post('/:id/request-join', validate(requestJoinSchema), companyController.requestJoin);
+
 module.exports = router;
+

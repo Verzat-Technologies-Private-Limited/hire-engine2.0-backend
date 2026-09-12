@@ -20,7 +20,9 @@ const refreshToken = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  // Client discards tokens. In production, could blacklist token in cache adapter.
+  const token = req.body?.refreshToken || req.headers.authorization?.split(' ')[1];
+  const userId = req.user?._id;
+  await authService.logout(userId || token);
   ApiResponse.ok('Logged out successfully').send(res);
 });
 
@@ -40,6 +42,12 @@ const verifyEmail = asyncHandler(async (req, res) => {
   const { token } = req.body;
   await authService.verifyEmail(token);
   ApiResponse.ok('Email verified successfully.').send(res);
+});
+
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  await authService.resendVerificationEmail(email);
+  ApiResponse.ok('If an unverified account with that email exists, a new verification link has been sent.').send(res);
 });
 
 const oauthCallback = asyncHandler(async (req, res) => {
@@ -73,6 +81,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   verifyEmail,
+  resendVerificationEmail,
   oauthCallback,
   sendOtp,
   verifyOtp,

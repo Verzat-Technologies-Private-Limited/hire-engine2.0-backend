@@ -118,11 +118,51 @@ const verifyPhoneOtpSchema = {
   }),
 };
 
+const inviteTeamMemberSchema = {
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+  }),
+  body: Joi.object({
+    email: Joi.string().email().lowercase().trim().required(),
+    permissions: Joi.array()
+      .items(Joi.string().valid(...Object.values(TeamPermission)))
+      .min(1)
+      .default(['view_applications']),
+  }),
+};
+
+const acceptInvitationSchema = {
+  params: Joi.object({
+    token: Joi.string().required(),
+  }),
+  body: Joi.object({
+    firstName: Joi.string().trim().max(50).optional(),
+    lastName: Joi.string().trim().max(50).optional(),
+    password: Joi.string().min(8).max(128).optional(),
+  }),
+};
+
+const matchDomainSchema = {
+  query: Joi.object({
+    domain: Joi.string().trim().required(),
+  }),
+};
+
+const requestJoinSchema = {
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required(),
+  }),
+};
+
 module.exports = {
   createCompanySchema,
   updateCompanySchema,
   addTeamMemberSchema,
   updateTeamMemberSchema,
+  inviteTeamMemberSchema,
+  acceptInvitationSchema,
+  matchDomainSchema,
+  requestJoinSchema,
   uploadCompanyDocumentSchema,
   sendPhoneOtpSchema,
   verifyPhoneOtpSchema,

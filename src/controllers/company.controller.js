@@ -68,6 +68,41 @@ const verifyPhoneOtp = asyncHandler(async (req, res) => {
   ApiResponse.ok('Company phone verified successfully', updated).send(res);
 });
 
+const inviteTeamMember = asyncHandler(async (req, res) => {
+  const invitation = await companyService.inviteTeamMember(req.params.id, req.user._id, req.body);
+  ApiResponse.created('Team invitation sent successfully', invitation).send(res);
+});
+
+const getInvitations = asyncHandler(async (req, res) => {
+  const invitations = await companyService.getCompanyInvitations(req.params.id, req.user._id);
+  ApiResponse.ok('Company invitations retrieved successfully', invitations).send(res);
+});
+
+const revokeInvitation = asyncHandler(async (req, res) => {
+  const invitation = await companyService.revokeInvitation(req.params.id, req.user._id, req.params.inviteId);
+  ApiResponse.ok('Invitation revoked successfully', invitation).send(res);
+});
+
+const getInvitationByToken = asyncHandler(async (req, res) => {
+  const invitation = await companyService.getInvitationByToken(req.params.token);
+  ApiResponse.ok('Invitation retrieved successfully', invitation).send(res);
+});
+
+const acceptInvitation = asyncHandler(async (req, res) => {
+  const result = await companyService.acceptInvitation(req.params.token, req.body, req.user);
+  ApiResponse.ok('Invitation accepted successfully', result).send(res);
+});
+
+const matchDomain = asyncHandler(async (req, res) => {
+  const result = await companyService.matchCompanyByDomain(req.query.domain);
+  ApiResponse.ok('Domain lookup result', result).send(res);
+});
+
+const requestJoin = asyncHandler(async (req, res) => {
+  const result = await companyService.requestToJoinCompany(req.params.id, req.user._id);
+  ApiResponse.ok(result.message, result).send(res);
+});
+
 module.exports = {
   registerCompany,
   getCompany,
@@ -75,6 +110,13 @@ module.exports = {
   addTeamMember,
   updateTeamMemberPermissions,
   removeTeamMember,
+  inviteTeamMember,
+  getInvitations,
+  revokeInvitation,
+  getInvitationByToken,
+  acceptInvitation,
+  matchDomain,
+  requestJoin,
   uploadDocument,
   getDocuments,
   sendPhoneOtp,

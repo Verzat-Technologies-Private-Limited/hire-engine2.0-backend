@@ -426,8 +426,8 @@ async function getTransactionInvoice(userId, transactionId) {
   const sellerProfiles = {
     IN: {
       legalEntity: 'Hire Engine India Private Limited',
-      address: 'Plot 42, Cyber City, Gurugram, Haryana 122002, India',
-      state: 'HR',
+      address: 'Wirpo Circle, Hinjewadi, Pune, Maharashtra 411057, India',
+      state: 'MH',
       gstin: '06AAACH7409R1ZZ',
       pan: 'AAACH7409R',
       sacCode: '998311',

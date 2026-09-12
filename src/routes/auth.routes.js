@@ -11,6 +11,7 @@ const {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyEmailSchema,
+  resendVerificationSchema,
   sendOtpSchema,
   verifyOtpSchema,
   changePasswordSchema,
@@ -37,6 +38,7 @@ router.post(
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), authController.resetPassword);
 router.post('/verify-email', validate(verifyEmailSchema), authController.verifyEmail);
+router.post('/resend-verification-email', authLimiter, validate(resendVerificationSchema), authController.resendVerificationEmail);
 
 // SMS OTP Gateway endpoints
 router.post('/send-otp', authLimiter, validate(sendOtpSchema), authController.sendOtp);

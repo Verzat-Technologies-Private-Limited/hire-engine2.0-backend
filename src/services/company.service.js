@@ -103,6 +103,23 @@ async function registerCompany(ownerId, companyData, countryPlugin) {
     await plugin.checkDuplicateRegistration(registrationDetails, Company);
   }
 
+  // Corporate domain auto-matching check: Prevent duplicate company registration with the same corporate website domain
+  if (companyData.website) {
+    const { extractDomain, isFreeEmailProvider } = require('../utils/emailDomain');
+    const websiteDomain = extractDomain(companyData.website);
+    if (websiteDomain && !isFreeEmailProvider(`test@${websiteDomain}`)) {
+      const escapedDomain = websiteDomain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const existingDomainCompany = await Company.findOne({
+        website: { $regex: new RegExp(`(^|://)(www\\.)?${escapedDomain}(/|$)`, 'i') },
+      });
+      if (existingDomainCompany && existingDomainCompany.owner.toString() !== ownerId.toString()) {
+        throw ApiError.conflict(
+          `A company profile with the domain "${websiteDomain}" (${existingDomainCompany.name}) is already registered. Please request to join your company team or contact support.`
+        );
+      }
+    }
+  }
+
   // Gap 3: Phone number and optional instant OTP verification
   let isPhoneVerified = false;
   if (companyData.phone && companyData.phoneOtp) {
@@ -289,7 +306,11 @@ async function removeTeamMember(companyId, ownerId, memberUserId) {
   );
   await company.save();
 
-  await User.findByIdAndUpdate(memberUserId, { company: null, role: 'jobseeker' });
+  await User.findByIdAndUpdate(memberUserId, {
+    company: null,
+    role: 'jobseeker',
+    $unset: { refreshToken: 1 },
+  });
 }
 
 /**
@@ -442,6 +463,318 @@ async function verifyCompanyPhoneOtp(companyId, userId, phone, otp) {
   return company.toJSON();
 }
 
+/**
+ * Invite a team member to collaborate on a company profile.
+ * Generates an invitation record with token and dispatches an invitation email.
+ * @param {string} companyId
+ * @param {string} inviterId
+ * @param {object} inviteData - { email, permissions }
+ * @returns {Promise<object>}
+ */
+async function inviteTeamMember(companyId, inviterId, inviteData) {
+  const CompanyInvitation = require('../models/CompanyInvitation');
+  const crypto = require('crypto');
+  const emailService = require('./email.service');
+
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  if (company.owner.toString() !== inviterId.toString()) {
+    throw ApiError.forbidden('Only the company owner can invite team members');
+  }
+
+  const { email, permissions } = inviteData;
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Check if existing user is already owner or member
+  const existingUser = await User.findOne({ email: normalizedEmail });
+  if (existingUser && company.isTeamMember(existingUser._id)) {
+    throw ApiError.conflict('User is already a team member or owner of this company');
+  }
+
+  // Token expires in 7 days
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  // If there is an existing pending invite, revoke it
+  await CompanyInvitation.updateMany(
+    { company: companyId, email: normalizedEmail, status: 'pending' },
+    { status: 'revoked' }
+  );
+
+  const invitation = await CompanyInvitation.create({
+    company: companyId,
+    email: normalizedEmail,
+    permissions: permissions || [],
+    invitedBy: inviterId,
+    token,
+    expiresAt,
+    status: 'pending',
+  });
+
+  const inviter = await User.findById(inviterId);
+  emailService
+    .sendTeamInvitationEmail({
+      email: normalizedEmail,
+      companyName: company.name,
+      inviterName: inviter?.getFullName ? inviter.getFullName() : 'Administrator',
+      inviteToken: token,
+      permissions,
+    })
+    .catch((err) => logger.error('Failed to send team invitation email', { error: err.message }));
+
+  return invitation.toJSON();
+}
+
+/**
+ * Get pending team invitations for a company.
+ * @param {string} companyId
+ * @param {string} requesterId
+ * @returns {Promise<Array<object>>}
+ */
+async function getCompanyInvitations(companyId, requesterId) {
+  const CompanyInvitation = require('../models/CompanyInvitation');
+
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  if (!company.isTeamMember(requesterId)) {
+    throw ApiError.forbidden('You do not have access to view this company invitations');
+  }
+
+  const invitations = await CompanyInvitation.find({
+    company: companyId,
+    status: 'pending',
+    expiresAt: { $gt: new Date() },
+  })
+    .populate('invitedBy', 'firstName lastName email')
+    .sort({ createdAt: -1 });
+
+  return invitations;
+}
+
+/**
+ * Revoke a pending team invitation.
+ * @param {string} companyId
+ * @param {string} ownerId
+ * @param {string} inviteId
+ * @returns {Promise<object>}
+ */
+async function revokeInvitation(companyId, ownerId, inviteId) {
+  const CompanyInvitation = require('../models/CompanyInvitation');
+
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  if (company.owner.toString() !== ownerId.toString()) {
+    throw ApiError.forbidden('Only the company owner can revoke team invitations');
+  }
+
+  const invitation = await CompanyInvitation.findOneAndUpdate(
+    { _id: inviteId, company: companyId, status: 'pending' },
+    { status: 'revoked' },
+    { new: true }
+  );
+
+  if (!invitation) {
+    throw ApiError.notFound('Pending invitation not found');
+  }
+
+  return invitation.toJSON();
+}
+
+/**
+ * Get invitation details by secure token (publicly accessible).
+ * @param {string} token
+ * @returns {Promise<object>}
+ */
+async function getInvitationByToken(token) {
+  const CompanyInvitation = require('../models/CompanyInvitation');
+
+  const invitation = await CompanyInvitation.findOne({ token, status: 'pending' })
+    .populate('company', 'name slug logoUrl countryCode verificationStatus')
+    .populate('invitedBy', 'firstName lastName email');
+
+  if (!invitation || invitation.isExpired()) {
+    throw ApiError.badRequest('This team invitation is invalid or has expired');
+  }
+
+  return invitation.toJSON();
+}
+
+/**
+ * Accept a team invitation and join the company.
+ * If user does not exist, registers the user account.
+ * If user exists, associates with company and assigns permissions.
+ * @param {string} token
+ * @param {object} [userData] - { firstName, lastName, password } if user is not already registered
+ * @param {object} [currentUser] - Authenticated user if already logged in
+ * @returns {Promise<object>}
+ */
+async function acceptInvitation(token, userData = {}, currentUser = null) {
+  const CompanyInvitation = require('../models/CompanyInvitation');
+  const { generateTokenPair } = require('../utils/tokens');
+
+  const invitation = await CompanyInvitation.findOne({ token, status: 'pending' });
+  if (!invitation || invitation.isExpired()) {
+    throw ApiError.badRequest('This team invitation is invalid or has expired');
+  }
+
+  const company = await Company.findById(invitation.company);
+  if (!company) {
+    throw ApiError.notFound('Company associated with this invitation no longer exists');
+  }
+
+  let user = currentUser;
+
+  if (!user) {
+    const userQuery = User.findOne({ email: invitation.email.toLowerCase() });
+    user = typeof userQuery?.select === 'function' ? await userQuery.select('+passwordHash') : await userQuery;
+    if (!user) {
+      if (!userData.password) {
+        throw ApiError.badRequest('Password is required to create your account');
+      }
+
+      user = await User.create({
+        firstName: userData.firstName || 'Team',
+        lastName: userData.lastName || 'Member',
+        email: invitation.email.toLowerCase(),
+        passwordHash: userData.password,
+        role: 'employer',
+        company: company._id,
+        countryCode: company.countryCode || '',
+        isEmailVerified: true,
+        authProvider: 'local',
+      });
+    }
+  }
+
+  // Add user to company.teamMembers if not already a member
+  if (!company.isTeamMember(user._id)) {
+    company.teamMembers.push({
+      user: user._id,
+      permissions: invitation.permissions || [],
+    });
+    await company.save();
+  }
+
+  // Update user's company and role
+  user.company = company._id;
+  user.role = 'employer';
+  user.isEmailVerified = true;
+  await user.save();
+
+  // Mark invitation as accepted
+  invitation.status = 'accepted';
+  await invitation.save();
+
+  // Generate tokens for immediate login
+  const tokens = generateTokenPair(user);
+  if (typeof User.hashToken === 'function') {
+    user.refreshToken = User.hashToken(tokens.refreshToken);
+    await user.save();
+  }
+
+  return {
+    user: user.toJSON(),
+    company: company.toJSON(),
+    tokens,
+  };
+}
+
+/**
+ * Auto-match an existing company by corporate domain or email.
+ * @param {string} domainOrEmail
+ * @returns {Promise<{ matched: boolean, company?: object, reason?: string }>}
+ */
+async function matchCompanyByDomain(domainOrEmail) {
+  const { extractDomain, isFreeEmailProvider } = require('../utils/emailDomain');
+
+  if (!domainOrEmail || typeof domainOrEmail !== 'string') {
+    throw ApiError.badRequest('Domain or corporate email address is required');
+  }
+
+  const domain = extractDomain(domainOrEmail);
+  if (!domain) {
+    return { matched: false, reason: 'invalid_domain' };
+  }
+
+  if (isFreeEmailProvider(`test@${domain}`)) {
+    return { matched: false, reason: 'consumer_domain' };
+  }
+
+  const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const company = await Company.findOne({
+    website: { $regex: new RegExp(`(^|://)(www\\.)?${escapedDomain}(/|$)`, 'i') },
+  }).select('_id name slug logoUrl countryCode verificationStatus owner');
+
+  if (!company) {
+    return { matched: false };
+  }
+
+  return {
+    matched: true,
+    company: {
+      _id: company._id,
+      name: company.name,
+      slug: company.slug,
+      logoUrl: company.logoUrl || '',
+      countryCode: company.countryCode,
+      verificationStatus: company.verificationStatus,
+    },
+  };
+}
+
+/**
+ * Request to join a company when corporate domains match.
+ * Dispatches an email notification to the company owner.
+ * @param {string} companyId
+ * @param {string} userId
+ * @returns {Promise<{ success: boolean, message: string }>}
+ */
+async function requestToJoinCompany(companyId, userId) {
+  const emailService = require('./email.service');
+
+  const company = await Company.findById(companyId);
+  if (!company) {
+    throw ApiError.notFound('Company not found');
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throw ApiError.notFound('User not found');
+  }
+
+  if (company.isTeamMember(user._id)) {
+    throw ApiError.conflict('You are already a team member or owner of this company');
+  }
+
+  const owner = await User.findById(company.owner);
+  if (!owner) {
+    throw ApiError.notFound('Company owner could not be found');
+  }
+
+  emailService
+    .sendJoinRequestNotification({
+      ownerEmail: owner.email,
+      companyName: company.name,
+      requesterName: user.getFullName ? user.getFullName() : `${user.firstName} ${user.lastName}`,
+      requesterEmail: user.email,
+    })
+    .catch((err) => logger.error('Failed to dispatch join request notification', { error: err.message }));
+
+  return {
+    success: true,
+    message: `A request to join ${company.name} has been sent to the company administrator.`,
+  };
+}
+
 module.exports = {
   registerCompany,
   getCompanyById,
@@ -449,6 +782,13 @@ module.exports = {
   addTeamMember,
   updateTeamMemberPermissions,
   removeTeamMember,
+  inviteTeamMember,
+  getCompanyInvitations,
+  revokeInvitation,
+  getInvitationByToken,
+  acceptInvitation,
+  matchCompanyByDomain,
+  requestToJoinCompany,
   uploadCompanyDocument,
   getCompanyDocuments,
   sendCompanyPhoneOtp,

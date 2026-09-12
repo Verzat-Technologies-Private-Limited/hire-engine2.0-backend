@@ -203,10 +203,74 @@ async function sendJobModerationNotice(user, job, action, reason = '', countryPl
   });
 }
 
+/**
+ * Send team member invitation email.
+ * @param {object} params - { email, companyName, inviterName, inviteToken, permissions }
+ */
+async function sendTeamInvitationEmail({ email, companyName, inviterName, inviteToken, permissions }) {
+  const inviteUrl = `${config.clientUrl}/accept-invitation?token=${inviteToken}`;
+  const subject = `You've been invited to join ${companyName} on HireEngine`;
+  const permissionsList = Array.isArray(permissions) && permissions.length > 0
+    ? permissions.join(', ')
+    : 'standard team access';
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1F2937;">
+      <h2 style="color: #111827;">Join ${companyName} on HireEngine</h2>
+      <p style="font-size: 15px; line-height: 1.6;">
+        <strong>${inviterName || 'An administrator'}</strong> has invited you to collaborate on the <strong>${companyName}</strong> employer account.
+      </p>
+      <p style="font-size: 14px; color: #4B5563;">Assigned Permissions: <strong>${permissionsList}</strong></p>
+      <div style="margin: 30px 0;">
+        <a href="${inviteUrl}" style="background-color: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Accept Invitation & Join Team</a>
+      </div>
+      <p style="font-size: 13px; color: #6B7280;">This invitation is valid for 7 days. If you did not expect this invitation, you can ignore this email.</p>
+    </div>
+  `;
+
+  return emailAdapter.sendEmail({
+    to: email,
+    subject,
+    html,
+    text: `You have been invited to join ${companyName} on HireEngine by ${inviterName}.\n\nAccept your invitation: ${inviteUrl}`,
+  });
+}
+
+/**
+ * Send domain join request email to company owner.
+ * @param {object} params - { ownerEmail, companyName, requesterName, requesterEmail }
+ */
+async function sendJoinRequestNotification({ ownerEmail, companyName, requesterName, requesterEmail }) {
+  const teamUrl = `${config.clientUrl}/employer/team`;
+  const subject = `New Team Join Request for ${companyName}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1F2937;">
+      <h2 style="color: #111827;">Team Join Request</h2>
+      <p style="font-size: 15px; line-height: 1.6;">
+        <strong>${requesterName}</strong> (<a href="mailto:${requesterEmail}">${requesterEmail}</a>) with a matching company domain has requested to join <strong>${companyName}</strong> on HireEngine.
+      </p>
+      <div style="margin: 30px 0;">
+        <a href="${teamUrl}" style="background-color: #2563EB; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Manage Team & Invitations</a>
+      </div>
+      <p style="font-size: 13px; color: #6B7280;">You can invite them by adding their email in your Team Management dashboard.</p>
+    </div>
+  `;
+
+  return emailAdapter.sendEmail({
+    to: ownerEmail,
+    subject,
+    html,
+    text: `${requesterName} (${requesterEmail}) has requested to join your company team for ${companyName}.\n\nManage team: ${teamUrl}`,
+  });
+}
+
 module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendBulkNotification,
   sendCompanyVerificationDecision,
   sendJobModerationNotice,
+  sendTeamInvitationEmail,
+  sendJoinRequestNotification,
 };

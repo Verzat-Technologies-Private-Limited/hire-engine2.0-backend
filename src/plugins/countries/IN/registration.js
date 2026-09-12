@@ -84,6 +84,19 @@ function validateRegistration(data) {
     }
   }
 
+  // Cross-validate GSTIN vs PAN: Characters 3-12 of GSTIN must match PAN
+  if (data.gstNumber && data.panNumber) {
+    const trimmedGst = data.gstNumber.trim().toUpperCase();
+    const trimmedPan = data.panNumber.trim().toUpperCase();
+    const gstPan = trimmedGst.substring(2, 12);
+    if (gstPan !== trimmedPan) {
+      errors.push({
+        field: 'gstNumber',
+        message: `GSTIN PAN mismatch: Characters 3-12 of GSTIN (${gstPan}) must match the provided PAN (${trimmedPan})`,
+      });
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,

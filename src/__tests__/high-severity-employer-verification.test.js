@@ -70,7 +70,7 @@ describe('High Severity Employer Registration & Verification Suite', () => {
         phone: '+919876543210',
         contactName: 'Jane Doe',
         registrationDetails: {
-          gstNumber: '27AAAAA0000A1Z5',
+          gstNumber: '27ABCDE1234F1Z5',
           panNumber: 'ABCDE1234F',
           registeredAddress: {
             street: 'MG Road',
@@ -469,7 +469,7 @@ describe('High Severity Employer Registration & Verification Suite', () => {
           countryCode: 'IN',
           phone: '+919988776655',
           registrationDetails: {
-            gstNumber: '29AAAAA0000A1Z5',
+            gstNumber: '29ABCDE5678G1Z5',
             panNumber: 'ABCDE5678G',
             registeredAddress: {
               street: 'Brigade Road',
@@ -502,7 +502,7 @@ describe('High Severity Employer Registration & Verification Suite', () => {
           countryCode: 'IN',
           phone: '+919988776655',
           registrationDetails: {
-            gstNumber: '29AAAAA0000A1Z5',
+            gstNumber: '29ABCDE5678G1Z5',
             panNumber: 'ABCDE5678G',
             registeredAddress: {
               street: 'Brigade Road',

@@ -45,19 +45,51 @@ async function register(userData) {
     throw ApiError.conflict('An account with this email address already exists');
   }
 
+  // Validate corporate email for employers using country plugin architecture
+  const userRole = role || 'jobseeker';
+  if (userRole === 'employer') {
+    let emailValidation;
+    if (countryCode) {
+      try {
+        const { getCountryPlugin } = require('../plugins/countries');
+        const plugin = getCountryPlugin(countryCode);
+        emailValidation = typeof plugin.validateEmployerEmail === 'function'
+          ? plugin.validateEmployerEmail(email)
+          : require('../utils/emailDomain').validateCorporateEmail(email);
+      } catch {
+        const { validateCorporateEmail } = require('../utils/emailDomain');
+        emailValidation = validateCorporateEmail(email);
+      }
+    } else {
+      const { validateCorporateEmail } = require('../utils/emailDomain');
+      emailValidation = validateCorporateEmail(email);
+    }
+
+    if (!emailValidation.valid) {
+      throw ApiError.badRequest(
+        emailValidation.message ||
+          'A business/corporate email address is required to register an employer profile. Free consumer email providers are not permitted.'
+      );
+    }
+  }
+
   // Create user
   const user = await User.create({
     firstName,
     lastName,
     email: email.toLowerCase(),
     passwordHash: password,
-    role: role || 'jobseeker',
+    role: userRole,
     countryCode: countryCode ? countryCode.toUpperCase() : '',
     authProvider: 'local',
   });
 
-  // Generate tokens
+  // Generate tokens and persist hashed refresh token
   const tokens = generateTokenPair(user);
+  if (typeof User.hashToken === 'function') {
+    user.refreshToken = User.hashToken(tokens.refreshToken);
+    await user.save();
+  }
 
   // Send verification email asynchronously
   try {
@@ -108,16 +140,77 @@ async function login(email, password) {
     throw ApiError.forbidden('Your account has been permanently banned.');
   }
 
+  // Check company status & permissions for employers
+  let companyData = null;
+  if (user.role === 'employer' || user.company) {
+    const Company = require('../models/Company');
+    const { TeamPermission } = require('../utils/constants');
+    let company = null;
+    if (user.company) {
+      company = await Company.findById(user.company);
+    }
+    if (!company) {
+      company = await Company.findOne({
+        $or: [{ owner: user._id }, { 'teamMembers.user': user._id }],
+      });
+    }
+
+    if (company) {
+      // Check company verification status
+      if (company.verificationStatus === 'rejected') {
+        throw ApiError.forbidden(
+          company.verificationNotes
+            ? `Your company profile verification was rejected: ${company.verificationNotes}`
+            : 'Your company profile verification has been rejected by administration. Please contact support.'
+        );
+      }
+
+      const isOwner = company.owner.toString() === user._id.toString();
+      let permissions = [];
+      if (isOwner) {
+        permissions = Object.values(TeamPermission);
+      } else if (Array.isArray(company.teamMembers)) {
+        const member = company.teamMembers.find((m) => m.user && m.user.toString() === user._id.toString());
+        permissions = member?.permissions || [];
+      }
+
+      companyData = {
+        _id: company._id,
+        name: company.name,
+        slug: company.slug,
+        logoUrl: company.logoUrl || '',
+        countryCode: company.countryCode,
+        verificationStatus: company.verificationStatus,
+        isVerified: company.verificationStatus === 'approved',
+        isOwner,
+        permissions,
+      };
+
+      if (!user.company) {
+        user.company = company._id;
+      }
+    }
+  }
+
+  // Generate tokens and persist hashed refresh token in DB
+  const tokens = generateTokenPair(user);
+  if (typeof User.hashToken === 'function') {
+    user.refreshToken = User.hashToken(tokens.refreshToken);
+  }
+
   // Update last login
   // Sanitize legacy corrupted coordinates before save to avoid 2dsphere index errors
   _sanitizeUserCoordinates(user);
   user.lastLoginAt = new Date();
   await user.save();
 
-  const tokens = generateTokenPair(user);
+  const userObj = user.toJSON();
+  if (companyData) {
+    userObj.company = companyData;
+  }
 
   return {
-    user: user.toJSON(),
+    user: userObj,
     tokens,
   };
 }
@@ -168,6 +261,7 @@ async function handleOAuthCallback(profile) {
 
 /**
  * Refresh access token using a valid refresh token.
+ * Validates against the securely stored hashed refresh token in the DB and performs token rotation.
  * @param {string} refreshToken
  * @returns {Promise<{ accessToken: string, refreshToken: string }>}
  */
@@ -179,12 +273,67 @@ async function refreshAccessToken(refreshToken) {
     throw ApiError.unauthorized('Invalid or expired refresh token');
   }
 
-  const user = await User.findById(decoded.userId);
+  const user = await User.findById(decoded.userId).select('+refreshToken');
   if (!user || user.status !== 'active') {
     throw ApiError.unauthorized('User not found or account inactive');
   }
 
-  return generateTokenPair(user);
+  // Verify stored hashed refresh token matches incoming token
+  if (typeof User.hashToken === 'function') {
+    const incomingHash = User.hashToken(refreshToken);
+    if (!user.refreshToken || user.refreshToken !== incomingHash) {
+      // Token reuse or invalidated token: revoke token immediately
+      user.refreshToken = undefined;
+      await user.save();
+      throw ApiError.unauthorized('Invalid, revoked or expired refresh token');
+    }
+  }
+
+  // Token rotation: issue new token pair and save fresh hash to DB
+  const tokens = generateTokenPair(user);
+  if (typeof User.hashToken === 'function') {
+    user.refreshToken = User.hashToken(tokens.refreshToken);
+    await user.save();
+  }
+
+  return tokens;
+}
+
+/**
+ * Resend email verification link.
+ * @param {string} email
+ */
+async function resendVerificationEmail(email) {
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user) {
+    // Return silently to prevent email enumeration attack
+    return;
+  }
+
+  if (user.isEmailVerified) {
+    throw ApiError.badRequest('This email address is already verified');
+  }
+
+  const verificationToken = generateEmailToken({ userId: user._id, type: 'verify' }, '24h');
+  await emailService.sendVerificationEmail(user, verificationToken);
+}
+
+/**
+ * Log out user by revoking active refresh token in DB.
+ * @param {string} userIdOrToken
+ */
+async function logout(userIdOrToken) {
+  if (!userIdOrToken) return;
+  try {
+    if (typeof userIdOrToken === 'string' && userIdOrToken.length > 30) {
+      const hashed = typeof User.hashToken === 'function' ? User.hashToken(userIdOrToken) : userIdOrToken;
+      await User.updateOne({ refreshToken: hashed }, { $unset: { refreshToken: 1 } });
+    } else {
+      await User.findByIdAndUpdate(userIdOrToken, { $unset: { refreshToken: 1 } });
+    }
+  } catch (err) {
+    logger.error('Error invalidating refresh token on logout', { error: err.message });
+  }
 }
 
 /**
@@ -319,6 +468,8 @@ module.exports = {
   forgotPassword,
   resetPassword,
   verifyEmail,
+  resendVerificationEmail,
+  logout,
   sendOtp,
   verifyOtp,
   changePassword,

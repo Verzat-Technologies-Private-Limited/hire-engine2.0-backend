@@ -48,8 +48,71 @@ const authenticate = asyncHandler(async (req, _res, next) => {
 
   // 4. Attach user to request
   req.user = user;
+
+  // 5. Attach company and team membership context (req.company & req.companyMember)
+  if (user.company || user.role === 'employer') {
+    const Company = require('../models/Company');
+    const { TeamPermission } = require('../utils/constants');
+    const company = user.company
+      ? await Company.findById(user.company)
+      : await Company.findOne({ $or: [{ owner: user._id }, { 'teamMembers.user': user._id }] });
+
+    if (company) {
+      req.company = company;
+      const isOwner = company.owner.toString() === user._id.toString();
+      let permissions = [];
+      if (isOwner) {
+        permissions = Object.values(TeamPermission);
+      } else {
+        const member = company.teamMembers.find((m) => m.user.toString() === user._id.toString());
+        permissions = member?.permissions || [];
+      }
+
+      req.companyMember = {
+        isOwner,
+        permissions,
+        companyId: company._id,
+      };
+      req.isCompanyRejected = company.verificationStatus === 'rejected';
+    } else {
+      req.company = null;
+      req.companyMember = null;
+      req.isCompanyRejected = false;
+    }
+  } else {
+    req.company = null;
+    req.companyMember = null;
+    req.isCompanyRejected = false;
+  }
+
   next();
 });
+
+/**
+ * Require approved company verification middleware.
+ * Ensures the employer's company profile is fully approved before proceeding.
+ */
+const requireVerifiedCompany = (req, _res, next) => {
+  if (!req.company) {
+    throw ApiError.badRequest('No company profile found for this employer account');
+  }
+
+  if (req.company.verificationStatus === 'rejected') {
+    throw ApiError.forbidden(
+      req.company.verificationNotes
+        ? `Your company profile was rejected: ${req.company.verificationNotes}`
+        : 'Your company profile has been rejected by administration. Please contact support.'
+    );
+  }
+
+  if (req.company.verificationStatus !== 'approved') {
+    throw ApiError.forbidden(
+      `Company profile verification is currently "${req.company.verificationStatus}". An approved company profile is required.`
+    );
+  }
+
+  next();
+};
 
 /**
  * Optional authentication middleware.
@@ -81,4 +144,4 @@ const optionalAuth = asyncHandler(async (req, _res, next) => {
   next();
 });
 
-module.exports = { authenticate, optionalAuth };
+module.exports = { authenticate, optionalAuth, requireVerifiedCompany };

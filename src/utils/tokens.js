@@ -23,7 +23,9 @@ function generateAccessToken(payload) {
  * @returns {string} JWT refresh token
  */
 function generateRefreshToken(payload) {
-  return jwt.sign(payload, config.jwt.refreshSecret, {
+  const crypto = require('crypto');
+  const jti = crypto.randomBytes(16).toString('hex');
+  return jwt.sign({ ...payload, jti }, config.jwt.refreshSecret, {
     expiresIn: config.jwt.refreshExpiry,
   });
 }

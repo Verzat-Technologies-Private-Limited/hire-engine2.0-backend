@@ -76,6 +76,12 @@ const changePasswordSchema = {
   }),
 };
 
+const resendVerificationSchema = {
+  body: Joi.object({
+    email: Joi.string().email().lowercase().trim().required(),
+  }),
+};
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -83,6 +89,7 @@ module.exports = {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyEmailSchema,
+  resendVerificationSchema,
   sendOtpSchema,
   verifyOtpSchema,
   changePasswordSchema,
