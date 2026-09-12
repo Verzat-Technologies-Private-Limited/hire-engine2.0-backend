@@ -6,6 +6,7 @@ const updateProfileSchema = {
     firstName: Joi.string().trim().min(1).max(50),
     lastName: Joi.string().trim().min(1).max(50),
     phone: Joi.string().trim().allow(''),
+    avatar: Joi.string().uri().allow(''),
     headline: Joi.string().max(200).allow(''),
     summary: Joi.string().max(2000).allow(''),
     skills: Joi.array().items(Joi.string().trim()).max(50),

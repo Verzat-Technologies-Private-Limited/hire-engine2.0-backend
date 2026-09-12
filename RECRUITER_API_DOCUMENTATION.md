@@ -1,48 +1,58 @@
 # 💼 Hire Engine — Recruiter & Employer API Documentation
 
 > **Complete Frontend Developer Integration Guide**  
-> *Everything required to implement the Recruiter Portal / Employer Dashboard.*
+> *Verified against actual backend routes, controllers, Joi validation schemas, and database models. Everything required to implement the Recruiter Portal and Employer Dashboard without consulting backend developers.*
 
 ---
 
 ## 📑 Table of Contents
 
 1. [Architecture & Request Standards](#1-architecture--request-standards)
-   - [Base URL & Environments](#11-base-url--environments)
-   - [Authentication & JWT Headers](#12-authentication--jwt-headers)
-   - [Multi-Country Context Headers](#13-multi-country-context-headers)
-   - [Standard API Response Format](#14-standard-api-response-format)
-   - [Standard API Error Format & Status Codes](#15-standard-api-error-format--status-codes)
-   - [Pagination & Sorting Standards](#16-pagination--sorting-standards)
+   - [1.1 Base URL & Environments](#11-base-url--environments)
+   - [1.2 Authentication & JWT Headers](#12-authentication--jwt-headers)
+   - [1.3 Multi-Country Context Headers & Parameters](#13-multi-country-context-headers--parameters)
+   - [1.4 Standard API Response Format](#14-standard-api-response-format)
+   - [1.5 Standard API Error Format & Status Codes](#15-standard-api-error-format--status-codes)
+   - [1.6 Pagination & Sorting Standards](#16-pagination--sorting-standards)
 2. [Recruiter Authentication & Identity](#2-recruiter-authentication--identity)
-   - `POST /api/v1/auth/register` (Register Recruiter)
-   - `POST /api/v1/auth/login` (Login)
+   - `POST /api/v1/auth/register` (Register Recruiter — Corporate Email Enforced)
+   - `POST /api/v1/auth/login` (Login with User & Company Permissions Context)
    - `POST /api/v1/auth/refresh-token` (Refresh Access Token)
-   - `POST /api/v1/auth/logout` (Logout)
-   - `POST /api/v1/auth/forgot-password` (Forgot Password)
-   - `POST /api/v1/auth/reset-password` (Reset Password)
-   - `POST /api/v1/auth/verify-email` (Verify Email)
+   - `POST /api/v1/auth/logout` (Logout Session)
+   - `POST /api/v1/auth/change-password` (Change Password — Authenticated)
+   - `POST /api/v1/auth/forgot-password` (Request Password Reset Link)
+   - `POST /api/v1/auth/reset-password` (Reset Password with Token)
+   - `POST /api/v1/auth/verify-email` (Verify Email Token)
+   - `POST /api/v1/auth/resend-verification-email` (Resend Verification Email)
    - `POST /api/v1/auth/send-otp` (Send SMS OTP)
    - `POST /api/v1/auth/verify-otp` (Verify SMS OTP)
    - `GET /api/v1/auth/google` & `GET /api/v1/auth/linkedin` (Social OAuth)
 3. [Recruiter Profile Management](#3-recruiter-profile-management)
    - `GET /api/v1/users/me` (Get Current Profile)
    - `PATCH /api/v1/users/me` (Update Profile Details)
+   - `PATCH /api/v1/users/me/visibility` (Toggle Profile Visibility)
    - `DELETE /api/v1/users/me` (GDPR Account Deletion)
-4. [Company Profile & Team Management](#4-company-profile--team-management)
+4. [Company Profile, Verification & Team Collaboration](#4-company-profile-verification--team-collaboration)
+   - `GET /api/v1/companies/lookup/domain` (Match Company by Corporate Domain)
    - `POST /api/v1/companies` (Register Company with Country Plugin Validation)
-   - `GET /api/v1/companies/:id` (Get Company Details)
+   - `GET /api/v1/companies/:id` (Get Company Profile Details)
    - `PATCH /api/v1/companies/:id` (Update Company Profile)
-   - `POST /api/v1/companies/:id/team` (Add Recruiter / Team Member)
+   - `POST /api/v1/companies/:id/request-join` (Request to Join Existing Company)
+   - `POST /api/v1/companies/:id/team` (Add Team Member Directly — Owner Only)
    - `PATCH /api/v1/companies/:id/team/:userId` (Update Team Member Permissions)
    - `DELETE /api/v1/companies/:id/team/:userId` (Remove Team Member)
-   - `POST /api/v1/companies/:id/documents` (Upload Verification Document)
-   - `GET /api/v1/companies/:id/documents` (Get Company Documents & Verification Checklist)
-   - `POST /api/v1/companies/phone/send-otp` (Send OTP to Company Business Phone)
+   - `POST /api/v1/companies/:id/invitations` (Invite Team Member via Email)
+   - `GET /api/v1/companies/:id/invitations` (List Company Invitations)
+   - `DELETE /api/v1/companies/:id/invitations/:inviteId` (Revoke Invitation)
+   - `GET /api/v1/companies/invitations/:token` (Public Invitation Preview)
+   - `POST /api/v1/companies/invitations/:token/accept` (Accept Team Invitation)
+   - `POST /api/v1/companies/:id/documents` (Upload Compliance Document)
+   - `GET /api/v1/companies/:id/documents` (Get Documents & Verification Checklist)
+   - `POST /api/v1/companies/phone/send-otp` (Send OTP to Company Phone — Auth Required)
    - `POST /api/v1/companies/:id/phone/verify-otp` (Verify Company Phone OTP)
-   - [Employer Verification Lifecycle & Job Publishing Gate](#411-employer-verification-lifecycle--job-publishing-gate)
+   - [Employer Verification Lifecycle & Job Publishing Gate](#418-employer-verification-lifecycle--job-publishing-gate)
 5. [Job Postings Lifecycle Management](#5-job-postings-lifecycle-management)
-   - `POST /api/v1/jobs` (Create Job Posting)
+   - `POST /api/v1/jobs` (Create Job Posting — Active Subscription Required)
    - `GET /api/v1/jobs/employer/my-jobs` (List Recruiter's Jobs)
    - `GET /api/v1/jobs/:id` (Get Single Job Details)
    - `PATCH /api/v1/jobs/:id` (Update Job Details)
@@ -50,12 +60,13 @@
    - `POST /api/v1/jobs/:id/promote` (Sponsor / Boost Job)
 6. [Applicant Tracking System (ATS) & Candidate Pipeline](#6-applicant-tracking-system-ats--candidate-pipeline)
    - `GET /api/v1/applications/jobs/:jobId/applications` (List Job Applicants)
+   - `GET /api/v1/applications/:id` (Get Single Candidate Application Details)
    - `GET /api/v1/applications/:id/fit` (AI Candidate Fit Score & Scorecard)
    - `PATCH /api/v1/applications/:id/status` (Update Stage & Status)
    - `POST /api/v1/applications/:id/notes` (Add Recruiter Note & Rating)
    - `GET /api/v1/applications/:id/notes` (List Candidate Application Notes)
    - `PUT /api/v1/applications/:id/notes/:noteId` (Update Recruiter Note)
-   - `DELETE /api/v1/applications/:id/notes/:noteId` (Delete Recruiter Note)
+   - `DELETE /api/v1/applications/:id/notes/:noteId` (Delete Recruiter Note — 204 No Content)
    - `POST /api/v1/applications/:id/rate` (Rate Candidate 1–5 Stars)
    - `DELETE /api/v1/applications/:id/rate` (Clear Candidate Rating)
    - `POST /api/v1/applications/bulk-email` (Send Bulk Email to Applicants)
@@ -72,14 +83,18 @@
    - `GET /api/v1/resumes/:id/match/:jobId` (Direct Resume-to-Job Match Analysis)
 9. [Custom ATS Hiring Pipelines](#9-custom-ats-hiring-pipelines)
    - `POST /api/v1/pipelines` (Create Custom Pipeline)
-   - `GET /api/v1/pipelines` (List Company Pipelines)
+   - `GET /api/v1/pipelines` (List Company Pipelines — Requires `companyId` Query Param)
    - `PATCH /api/v1/pipelines/:id` (Update Pipeline & Stages)
    - `DELETE /api/v1/pipelines/:id` (Delete Pipeline)
 10. [Subscriptions, Pricing Plans & Invoicing](#10-subscriptions-pricing-plans--invoicing)
     - `GET /api/v1/subscriptions/plans` (Get Available Plans & Localized Pricing)
-    - `POST /api/v1/subscriptions` (Subscribe Company to Plan)
+    - `POST /api/v1/subscriptions` (Step 1: Create Subscription Order & Pending Transaction)
+    - `POST /api/v1/subscriptions/verify` (Step 2: Cryptographic Payment Verification & Activation)
+    - `GET /api/v1/subscriptions/current` (Current Subscription, Expiration & Quotas)
     - `DELETE /api/v1/subscriptions` (Cancel Active Subscription)
-    - `GET /api/v1/subscriptions/transactions` (Billing History & Invoices)
+    - `GET /api/v1/subscriptions/transactions` (Billing History & Transactions)
+    - `GET /api/v1/subscriptions/transactions/:id/invoice` (Download B2B Tax Invoice)
+    - `POST /api/v1/subscriptions/webhooks/:provider` (Payment Webhook Integration)
 11. [Recruitment Analytics & ROI Reporting](#11-recruitment-analytics--roi-reporting)
     - `GET /api/v1/analytics/company/overview` (Company Overview ROI Dashboard)
     - `GET /api/v1/analytics/jobs/:jobId` (Job Funnel & Conversion Analytics)
@@ -115,17 +130,23 @@ Content-Type: application/json
 ```
 
 - **Access Token Lifetime**: 15 minutes
-- **Refresh Token Lifetime**: 7 days (stored in secure `localStorage` or `HttpOnly` cookie)
+- **Refresh Token Lifetime**: 7 days (persisted securely in `localStorage` or `HttpOnly` cookie)
 - **Role Requirement**: Most recruiter endpoints require the user to have role `'employer'` or `'admin'`.
+- **Validation Engine**: Joi with `allowUnknown: false`. Any unexpected fields submitted in request bodies will trigger a `400 Bad Request` validation error. Submit only documented fields.
 
-### 1.3 Multi-Country Context Headers
+### 1.3 Multi-Country Context Headers & Parameters
 
-For multi-country compliance, tax calculation, and business verification rules, provide the country ISO alpha-2 code:
+The backend features a country plugin architecture (`IN`, `US`, etc.) that governs tax calculation, payment provider selection (Razorpay vs Stripe), business verification rules, and legal identifier formats.
 
-```http
-X-Country-Code: IN
-```
-*(Defaults to `US` if omitted. Supported values: `IN`, `US`, etc.)*
+Country context is resolved in order of priority:
+1. Explicit in request body (e.g. `countryCode: "IN"` in `POST /api/v1/companies` — **required** for company registration)
+2. Explicit in query string (e.g. `?countryCode=IN` in `GET /api/v1/subscriptions/plans`)
+3. HTTP Header:
+   ```http
+   X-Country-Code: IN
+   ```
+4. Company's registered country (when operating on an existing company)
+5. User's registered `countryCode`
 
 ### 1.4 Standard API Response Format
 
@@ -150,9 +171,11 @@ Every successful API response adheres to the `ApiResponse` format:
 }
 ```
 
+> **Note**: The `meta` object is included automatically on paginated list endpoints. `meta.pagination` provides all navigation flags required for UI paginators.
+
 ### 1.5 Standard API Error Format & Status Codes
 
-Errors return standard JSON containing error details:
+Errors return standard JSON containing machine-readable error details:
 
 ```json
 {
@@ -161,9 +184,9 @@ Errors return standard JSON containing error details:
   "message": "Validation failed",
   "errors": [
     {
-      "field": "title",
-      "message": "\"title\" is required",
-      "type": "validation"
+      "field": "phone",
+      "message": "Business phone number is required for company registration",
+      "type": "any.required"
     }
   ]
 }
@@ -172,18 +195,18 @@ Errors return standard JSON containing error details:
 #### Common HTTP Status Codes:
 - `200 OK`: Request succeeded.
 - `201 Created`: Resource created successfully.
-- `204 No Content`: Resource deleted or action executed with no return body.
+- `204 No Content`: Resource deleted successfully with no response body (e.g. `DELETE /applications/:id/notes/:noteId`).
 - `400 Bad Request`: Validation failure or malformed payload.
 - `401 Unauthorized`: Missing, expired, or invalid Bearer token.
 - `403 Forbidden`: Insufficient role or lack of company team permissions.
 - `404 Not Found`: Resource ID does not exist.
-- `409 Conflict`: Unique constraint violation (e.g. duplicate email, already applied).
+- `409 Conflict`: Unique constraint violation (e.g. duplicate email, duplicate company name).
 - `429 Too Many Requests`: Rate limit exceeded.
 - `500 Internal Server Error`: Server error.
 
 ### 1.6 Pagination & Sorting Standards
 
-All list endpoints accept the following query parameters:
+All list endpoints accept the following standard query parameters:
 - `page`: Page number (integer >= 1, default `1`).
 - `limit`: Items per page (integer 1-100, default `20`).
 - `sort`: Sorting field name prefix with `-` for descending (e.g. `-createdAt`, `rating`).
@@ -193,7 +216,13 @@ All list endpoints accept the following query parameters:
 ## 2. Recruiter Authentication & Identity
 
 ### 2.1 Recruiter Registration
-Create a new employer account.
+Create a new employer/recruiter account.
+
+> [!IMPORTANT]
+> **Corporate Email Mandatory for Employers**:
+> When `role: "employer"`, free consumer email providers (`gmail.com`, `yahoo.com`, `hotmail.com`, `outlook.com`, `icloud.com`, etc.) are **strictly rejected** by the backend validation with `400 Bad Request`:
+> `"A business/corporate email address is required to register an employer profile. Free consumer email providers are not permitted."`
+> Frontend registration forms must advise recruiters to use their official work email.
 
 - **Method / URL**: `POST /api/v1/auth/register`
 - **Auth**: None (Public)
@@ -212,15 +241,15 @@ Create a new employer account.
 }
 ```
 
-| Field | Type | Required | Description |
+| Field | Type | Required | Constraints |
 | :--- | :--- | :--- | :--- |
 | `firstName` | `string` | **Yes** | 1-50 characters |
 | `lastName` | `string` | **Yes** | 1-50 characters |
-| `email` | `string` | **Yes** | Valid corporate or personal email |
-| `password` | `string` | **Yes** | Min 8 characters |
-| `confirmPassword`| `string` | **Yes** | Must match `password` |
-| `role` | `string` | **Yes** | Must be `"employer"` for recruiter accounts |
-| `countryCode` | `string` | No | ISO 2-letter country code (e.g. `"US"`, `"IN"`) |
+| `email` | `string` | **Yes** | Valid corporate business email |
+| `password` | `string` | **Yes** | 8-128 characters |
+| `confirmPassword` | `string` | **Yes** | Must match `password` |
+| `role` | `string` | No | Defaults to `'jobseeker'`. Pass `'employer'` for recruiter profiles |
+| `countryCode` | `string` | No | ISO 2-letter uppercase code (e.g. `"US"`, `"IN"`) |
 
 #### Response `(201 Created)`
 ```json
@@ -235,10 +264,7 @@ Create a new employer account.
       "lastName": "Jenkins",
       "email": "sarah.jenkins@techcorp.io",
       "role": "employer",
-      "status": "active",
-      "isEmailVerified": false,
-      "countryCode": "US",
-      "createdAt": "2026-08-21T10:00:00.000Z"
+      "isEmailVerified": false
     },
     "tokens": {
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -251,7 +277,7 @@ Create a new employer account.
 ---
 
 ### 2.2 Recruiter Login
-Authenticate recruiter and obtain JWT tokens.
+Authenticate recruiter and obtain JWT tokens. For employer accounts, the backend automatically returns the recruiter's associated company summary, verification status, and team permissions.
 
 - **Method / URL**: `POST /api/v1/auth/login`
 - **Auth**: None (Public)
@@ -280,7 +306,25 @@ Authenticate recruiter and obtain JWT tokens.
       "role": "employer",
       "status": "active",
       "isEmailVerified": true,
-      "countryCode": "US"
+      "countryCode": "US",
+      "company": {
+        "_id": "66b44a20e7b231123a8b4588",
+        "name": "CloudScale Technologies Inc.",
+        "slug": "cloudscale-technologies-inc",
+        "logoUrl": "https://storage.hireengine.com/logos/cloudscale.png",
+        "countryCode": "US",
+        "verificationStatus": "approved",
+        "isVerified": true,
+        "isOwner": true,
+        "permissions": [
+          "manage_jobs",
+          "view_applications",
+          "manage_applications",
+          "manage_team",
+          "view_analytics",
+          "manage_billing"
+        ]
+      }
     },
     "tokens": {
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -290,13 +334,16 @@ Authenticate recruiter and obtain JWT tokens.
 }
 ```
 
+> **Frontend Routing Tip**:
+> If `user.role === 'employer'` and `user.company` is `null`, navigate the recruiter to the **Employer Onboarding / Company Registration** flow (`POST /api/v1/companies`). If `user.company` exists, route directly to the Employer Dashboard.
+
 ---
 
 ### 2.3 Refresh Access Token
-Obtain a fresh access token when the current 15-minute token expires.
+Obtain a fresh 15-minute access token and rotated refresh token using a valid refresh token.
 
 - **Method / URL**: `POST /api/v1/auth/refresh-token`
-- **Auth**: None
+- **Auth**: None (Public)
 
 #### Request Body
 ```json
@@ -321,10 +368,17 @@ Obtain a fresh access token when the current 15-minute token expires.
 ---
 
 ### 2.4 Logout
-Invalidate current session on client.
+Invalidate the current refresh token on the backend and discard tokens on the client.
 
 - **Method / URL**: `POST /api/v1/auth/logout`
-- **Auth**: Optional / Discard tokens on frontend
+- **Auth**: Optional / Discard tokens on client
+
+#### Request Body (Optional)
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
 
 #### Response `(200 OK)`
 ```json
@@ -338,7 +392,41 @@ Invalidate current session on client.
 
 ---
 
-### 2.5 Password Recovery & Reset
+### 2.5 Change Password (Authenticated)
+Change account password while logged in. Verifies current password before setting new password and invalidating active refresh tokens.
+
+- **Method / URL**: `POST /api/v1/auth/change-password`
+- **Auth**: `Bearer <token>`
+- **Rate Limit**: 20 requests per 15 min
+
+#### Request Body
+```json
+{
+  "currentPassword": "SecurePassword123!",
+  "newPassword": "NewSuperPassword456!",
+  "confirmPassword": "NewSuperPassword456!"
+}
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `currentPassword` | `string` | **Yes** | Existing account password |
+| `newPassword` | `string` | **Yes** | Min 8 characters, must differ from current password |
+| `confirmPassword` | `string` | **Yes** | Must match `newPassword` |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Password changed successfully",
+  "data": null
+}
+```
+
+---
+
+### 2.6 Password Recovery & Reset
 
 #### Step 1: Request Password Reset Link
 - **Method / URL**: `POST /api/v1/auth/forgot-password`
@@ -380,7 +468,7 @@ Invalidate current session on client.
 
 ---
 
-### 2.6 Verify Email Address
+### 2.7 Verify Email Address
 - **Method / URL**: `POST /api/v1/auth/verify-email`
 - **Request Body**:
 ```json
@@ -400,14 +488,13 @@ Invalidate current session on client.
 
 ---
 
-### 2.7 SMS OTP Authentication
-
-#### Step 1: Send OTP to Phone
-- **Method / URL**: `POST /api/v1/auth/send-otp`
+### 2.8 Resend Email Verification
+- **Method / URL**: `POST /api/v1/auth/resend-verification-email`
+- **Auth**: None (Public)
 - **Request Body**:
 ```json
 {
-  "mobile": "+14155552671"
+  "email": "sarah.jenkins@techcorp.io"
 }
 ```
 - **Response `(200 OK)`**:
@@ -415,20 +502,46 @@ Invalidate current session on client.
 {
   "success": true,
   "statusCode": 200,
-  "message": "OTP sent successfully to +14155552671",
+  "message": "If an unverified account with that email exists, a new verification link has been sent.",
+  "data": null
+}
+```
+
+---
+
+### 2.9 SMS OTP Authentication
+
+#### Step 1: Send OTP to Phone
+Dispatches 6-digit numeric OTP valid for 5 minutes via SMS gateway.
+
+- **Method / URL**: `POST /api/v1/auth/send-otp`
+- **Auth**: None (Public)
+- **Request Body**:
+```json
+{
+  "mobile": "+919876543210"
+}
+```
+- **Response `(200 OK)`**:
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "OTP sent successfully to +919876543210. Valid for 5 minutes.",
   "data": {
-    "mobile": "+14155552671",
-    "expiresIn": "5 minutes"
+    "success": true,
+    "message": "OTP sent successfully to +919876543210. Valid for 5 minutes."
   }
 }
 ```
 
 #### Step 2: Verify OTP
 - **Method / URL**: `POST /api/v1/auth/verify-otp`
+- **Auth**: None (Public)
 - **Request Body**:
 ```json
 {
-  "mobile": "+14155552671",
+  "mobile": "+919876543210",
   "otp": "492810"
 }
 ```
@@ -437,27 +550,30 @@ Invalidate current session on client.
 {
   "success": true,
   "statusCode": 200,
-  "message": "Mobile number verified successfully",
+  "message": "OTP verified successfully.",
   "data": {
-    "isVerified": true
+    "verified": true,
+    "message": "OTP verified successfully."
   }
 }
 ```
 
 ---
 
-### 2.8 Social OAuth (Google & LinkedIn)
-To initiate OAuth redirect the browser to:
+### 2.10 Social OAuth (Google & LinkedIn)
+To initiate social login/registration, redirect the browser to:
 - Google: `GET /api/v1/auth/google`
 - LinkedIn: `GET /api/v1/auth/linkedin`
 
-Callbacks return redirect with access and refresh tokens.
+OAuth callback returns JSON payload containing `{ user, tokens }` on success.
 
 ---
 
 ## 3. Recruiter Profile Management
 
 ### 3.1 Get Recruiter Profile
+Fetch current authenticated user profile. Automatically populates linked company details.
+
 - **Method / URL**: `GET /api/v1/users/me`
 - **Auth**: `Bearer <token>`
 
@@ -473,12 +589,18 @@ Callbacks return redirect with access and refresh tokens.
     "lastName": "Jenkins",
     "email": "sarah.jenkins@techcorp.io",
     "role": "employer",
-    "mobile": "+14155552671",
-    "avatar": "https://storage.hireengine.com/avatars/user-66b44a.jpg",
-    "headline": "Head of Technical Talent Acquisition",
+    "phone": "+14155552671",
+    "avatar": "https://storage.hireengine.com/avatars/sarah.jpg",
+    "headline": "Head of Talent Acquisition",
     "countryCode": "US",
     "status": "active",
+    "profileVisibility": "public",
     "isEmailVerified": true,
+    "company": {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc.",
+      "verificationStatus": "approved"
+    },
     "createdAt": "2026-08-21T10:00:00.000Z"
   }
 }
@@ -487,19 +609,37 @@ Callbacks return redirect with access and refresh tokens.
 ---
 
 ### 3.2 Update Recruiter Profile
+Update personal contact details, headline, and bio.
+
+> [!NOTE]
+> Field name for telephone is `phone` (NOT `mobile`). Unknown keys will trigger `400 Bad Request`. Email and role cannot be changed via this endpoint.
+
 - **Method / URL**: `PATCH /api/v1/users/me`
 - **Auth**: `Bearer <token>`
 
-#### Request Body
+#### Request Body *(At least one field required)*
 ```json
 {
   "firstName": "Sarah",
   "lastName": "Jenkins-Smith",
-  "mobile": "+14155559999",
-  "headline": "VP of Talent Acquisition",
-  "avatar": "https://storage.hireengine.com/avatars/user-66b44a-new.jpg"
+  "phone": "+14155559999",
+  "headline": "VP of Global Talent Acquisition",
+  "avatar": "https://storage.hireengine.com/avatars/sarah_new.jpg",
+  "summary": "10+ years scaling technology teams from Seed to Series D."
 }
 ```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `firstName` | `string` | No | 1–50 characters |
+| `lastName` | `string` | No | 1–50 characters |
+| `phone` | `string` | No | Contact phone number |
+| `avatar` | `string` | No | Valid image URL |
+| `headline` | `string` | No | Max 200 characters |
+| `summary` | `string` | No | Max 2000 characters |
+| `skills` | `string[]` | No | Array of strings (max 50) |
+| `location` | `object` | No | `{ address, city, state, country, postalCode }` |
+| `countryCode` | `string` | No | 2-letter uppercase ISO code |
 
 #### Response `(200 OK)`
 ```json
@@ -513,46 +653,125 @@ Callbacks return redirect with access and refresh tokens.
     "lastName": "Jenkins-Smith",
     "email": "sarah.jenkins@techcorp.io",
     "role": "employer",
-    "mobile": "+14155559999",
-    "headline": "VP of Talent Acquisition"
+    "phone": "+14155559999",
+    "headline": "VP of Global Talent Acquisition",
+    "avatar": "https://storage.hireengine.com/avatars/sarah_new.jpg"
   }
 }
 ```
 
 ---
 
-## 4. Company Profile & Team Management
+### 3.3 Toggle Profile Visibility
+Control whether recruiter profile is publicly searchable.
 
-### 4.1 Register Company Profile
+- **Method / URL**: `PATCH /api/v1/users/me/visibility`
+- **Auth**: `Bearer <token>`
+
+#### Request Body
+```json
+{
+  "visibility": "public"
+}
+```
+*(Valid values: `"public"`, `"private"`, `"anonymous"`)*
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Profile visibility set to public",
+  "data": {
+    "_id": "66b44a10e7b231123a8b4567",
+    "profileVisibility": "public"
+  }
+}
+```
+
+---
+
+### 3.4 Request GDPR Account Deletion
+Initiates GDPR compliant account deletion. Sets user status to `deleted` and anonymizes sensitive identifying attributes.
+
+- **Method / URL**: `DELETE /api/v1/users/me`
+- **Auth**: `Bearer <token>`
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Your account deletion request has been processed. All personal data has been scheduled for permanent erasure.",
+  "data": {
+    "message": "Your account deletion request has been processed. All personal data has been scheduled for permanent erasure."
+  }
+}
+```
+
+---
+
+## 4. Company Profile, Verification & Team Collaboration
+
+### 4.1 Match Company by Corporate Email Domain
+When a new recruiter registers with corporate email (e.g. `alex@uber.com`), call this endpoint to check if an existing company profile already exists for domain `uber.com`.
+
+- **Method / URL**: `GET /api/v1/companies/lookup/domain?domain=techcorp.io`
+- **Auth**: None (Public)
+
+#### Query Parameters
+| Param | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `domain` | `string` | **Yes** | Corporate domain extracted from user's email |
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Domain lookup result",
+  "data": {
+    "matched": true,
+    "company": {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc.",
+      "slug": "cloudscale-technologies-inc",
+      "logoUrl": "https://storage.hireengine.com/logos/cloudscale.png",
+      "website": "https://techcorp.io"
+    }
+  }
+}
+```
+*(If no company matched, returns `{ "matched": false, "company": null }`)*
+
+---
+
+### 4.2 Register Company Profile
 Registers the employer's company. Validates legal business registration fields, corporate contact phone, and duplicate business identifiers using the active Country Plugin.
 
 - **Method / URL**: `POST /api/v1/companies`
-- **Auth**: `Bearer <token>` (User must have verified their email address; `isEmailVerified: true`)
-- **Header**: `X-Country-Code: US` or `X-Country-Code: IN`
+- **Auth**: `Bearer <token>` (User must have verified email address; `isEmailVerified: true`)
+- **Headers**: `Content-Type: application/json` (Optional: `X-Country-Code: IN` or `US`)
 
-#### Pre-requisites & Business Rules
-1. **Email Verification Gate**: The user account must be verified before registering a company. If unverified, returns `403 Forbidden` (`"Please verify your email address before registering a company"`).
-2. **Single Ownership**: A user account may only own one registered company profile.
-3. **Duplicate Prevention**:
-   - Company name is checked case-insensitively across all registered companies.
-   - Country Plugin enforces uniqueness on official tax/incorporation identifiers (`gstNumber`, `panNumber`, `cinNumber` for India; `einNumber` for US).
-4. **Corporate Phone Verification**:
-   - Phone format is strictly validated according to the country plugin (e.g. 10-digit Indian mobile `[6-9]XXXXXXXXX` or US 10-digit phone).
-   - In India, providing a business phone is mandatory.
-   - Employers can pass `phoneOtp` during registration if they previously triggered `POST /api/v1/companies/phone/send-otp` to verify immediately.
-5. **Review SLA Target**:
-   - Automatically computes `reviewDeadlineAt` based on the country plugin SLA (e.g., 48 hours for India, 24 hours for US).
+#### Business Rules & Validation:
+1. **Email Verification Gate**: The user account must be verified before registering a company (`403 Forbidden` if unverified).
+2. **Single Ownership**: A user account may only own one registered company profile (`409 Conflict` if user already owns a company).
+3. **Mandatory Fields**: `name`, `countryCode` (2 uppercase characters), and `phone` are **strictly required**.
+4. **Country Plugin Registration Details**:
+   - For India (`IN`): Validates `registrationDetails.gstNumber` (15-char GSTIN format) and `registrationDetails.panNumber` (10-char PAN). Phone must be a valid 10-digit Indian mobile number.
+   - For US (`US`): Validates `registrationDetails.einNumber` (XX-XXXXXXX format).
+5. **Instant Phone Verification**: If recruiter previously triggered `POST /api/v1/companies/phone/send-otp`, they can provide `phoneOtp` directly in the registration payload to verify the company phone immediately upon registration.
 
 #### Request Body (US Company Example)
 ```json
 {
   "name": "CloudScale Technologies Inc.",
+  "countryCode": "US",
+  "phone": "+14155550199",
   "website": "https://cloudscale.io",
   "industry": "Software & Internet",
   "size": "51-200",
   "description": "Leading cloud infrastructure and developer automation platform.",
-  "countryCode": "US",
-  "phone": "+14155550199",
   "contactName": "Sarah Jenkins",
   "address": {
     "street": "500 Howard Street, Suite 400",
@@ -568,29 +787,23 @@ Registers the employer's company. Validates legal business registration fields, 
   "registrationDetails": {
     "einNumber": "12-3456789",
     "stateOfIncorporation": "DE",
-    "businessType": "corporation",
-    "registeredAddress": {
-      "street": "1209 North Orange Street",
-      "city": "Wilmington",
-      "state": "DE",
-      "zipCode": "19801"
-    }
+    "businessType": "corporation"
   }
 }
 ```
 
-#### Request Body (India Company Example with Instant Phone OTP Verification)
+#### Request Body (India Company with Instant Phone OTP)
 ```json
 {
   "name": "CloudScale India Pvt Ltd",
-  "website": "https://cloudscale.in",
-  "industry": "Software & Internet",
-  "size": "51-200",
-  "description": "India development center for CloudScale.",
   "countryCode": "IN",
   "phone": "+919876543210",
   "phoneOtp": "492810",
   "contactName": "Rajesh Sharma",
+  "website": "https://cloudscale.in",
+  "industry": "Software & Internet",
+  "size": "51-200",
+  "description": "India development center for CloudScale.",
   "address": {
     "street": "Outer Ring Road, Bellandur",
     "city": "Bengaluru",
@@ -601,13 +814,7 @@ Registers the employer's company. Validates legal business registration fields, 
   "registrationDetails": {
     "gstNumber": "29AAAAA0000A1Z5",
     "panNumber": "AAAAA0000A",
-    "cinNumber": "U72200KA2020PTC123456",
-    "registeredAddress": {
-      "street": "100ft Road, Indiranagar",
-      "city": "Bengaluru",
-      "state": "Karnataka",
-      "pincode": "560038"
-    }
+    "cinNumber": "U72200KA2020PTC123456"
   }
 }
 ```
@@ -627,12 +834,12 @@ Registers the employer's company. Validates legal business registration fields, 
     "size": "51-200",
     "description": "India development center for CloudScale.",
     "countryCode": "IN",
-    "verificationStatus": "pending",
     "phone": "+919876543210",
     "contactName": "Rajesh Sharma",
     "isPhoneVerified": true,
     "verifiedPhone": true,
-    "reviewDeadlineAt": "2026-09-06T10:05:00.000Z",
+    "verificationStatus": "pending",
+    "reviewDeadlineAt": "2026-09-14T10:05:00.000Z",
     "teamMembers": [
       {
         "user": "66b44a10e7b231123a8b4567",
@@ -645,19 +852,19 @@ Registers the employer's company. Validates legal business registration fields, 
           "view_analytics",
           "manage_billing"
         ],
-        "joinedAt": "2026-09-04T10:05:00.000Z"
+        "joinedAt": "2026-09-12T10:05:00.000Z"
       }
     ],
-    "createdAt": "2026-09-04T10:05:00.000Z"
+    "createdAt": "2026-09-12T10:05:00.000Z"
   }
 }
 ```
 
 ---
 
-### 4.2 Get Company Profile
+### 4.3 Get Company Profile
 - **Method / URL**: `GET /api/v1/companies/:id`
-- **Auth**: None (Public) or Bearer
+- **Auth**: None (Public) or `Bearer <token>`
 
 #### Response `(200 OK)`
 ```json
@@ -672,9 +879,10 @@ Registers the employer's company. Validates legal business registration fields, 
     "website": "https://cloudscale.io",
     "industry": "Software & Internet",
     "size": "51-200",
-    "description": "Leading cloud infrastructure and developer automation platform.",
+    "description": "Leading cloud infrastructure platform.",
     "countryCode": "US",
     "verificationStatus": "approved",
+    "isVerified": true,
     "address": {
       "city": "San Francisco",
       "state": "CA",
@@ -686,9 +894,11 @@ Registers the employer's company. Validates legal business registration fields, 
 
 ---
 
-### 4.3 Update Company Profile
+### 4.4 Update Company Profile
+Update company profile details. Requires `employer` or `admin` role and company team membership.
+
 - **Method / URL**: `PATCH /api/v1/companies/:id`
-- **Auth**: `Bearer <token>` (Requires `employer` / team admin)
+- **Auth**: `Bearer <token>`
 
 #### Request Body
 ```json
@@ -718,17 +928,39 @@ Registers the employer's company. Validates legal business registration fields, 
 
 ---
 
-### 4.4 Add Sub-Account Team Member (Recruiter / Hiring Manager)
+### 4.5 Request to Join Company
+Allows a recruiter whose domain matches an existing company to submit a request to the company owner for team membership.
+
+- **Method / URL**: `POST /api/v1/companies/:id/request-join`
+- **Auth**: `Bearer <token>`
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Join request submitted to company owner",
+  "data": {
+    "message": "Join request submitted to company owner"
+  }
+}
+```
+
+---
+
+### 4.6 Add Team Member Directly (Owner Only)
+Directly attach an existing registered user to the company with granular permissions.
+
 - **Method / URL**: `POST /api/v1/companies/:id/team`
 - **Auth**: `Bearer <token>` (Company Owner only)
 
 #### Available Team Permissions:
-- `manage_jobs`: Create, update, pause, and close job postings.
-- `view_applications`: View candidate applications & resumes.
-- `manage_applications`: Change stages, rate candidates, add notes.
-- `manage_team`: Invite and remove team members.
-- `view_analytics`: Access company and job performance analytics.
-- `manage_billing`: Manage subscription plans and view invoices.
+- `manage_jobs`: Create, edit, pause, and close job postings.
+- `view_applications`: View candidate applications and resumes.
+- `manage_applications`: Change hiring stages, submit notes, and rate candidates.
+- `manage_team`: Invite and manage team sub-accounts.
+- `view_analytics`: Access ROI metrics and job conversion reports.
+- `manage_billing`: Manage subscription plans and access invoices.
 
 #### Request Body
 ```json
@@ -755,7 +987,14 @@ Registers the employer's company. Validates legal business registration fields, 
       {
         "user": "66b44a10e7b231123a8b4567",
         "role": "owner",
-        "permissions": ["manage_jobs", "view_applications", "manage_applications", "manage_team", "view_analytics", "manage_billing"]
+        "permissions": [
+          "manage_jobs",
+          "view_applications",
+          "manage_applications",
+          "manage_team",
+          "view_analytics",
+          "manage_billing"
+        ]
       },
       {
         "user": {
@@ -765,8 +1004,13 @@ Registers the employer's company. Validates legal business registration fields, 
           "email": "alex.recruiter@techcorp.io"
         },
         "role": "member",
-        "permissions": ["manage_jobs", "view_applications", "manage_applications", "view_analytics"],
-        "joinedAt": "2026-08-21T10:15:00.000Z"
+        "permissions": [
+          "manage_jobs",
+          "view_applications",
+          "manage_applications",
+          "view_analytics"
+        ],
+        "joinedAt": "2026-09-12T10:15:00.000Z"
       }
     ]
   }
@@ -775,7 +1019,7 @@ Registers the employer's company. Validates legal business registration fields, 
 
 ---
 
-### 4.5 Update Team Member Permissions
+### 4.7 Update Team Member Permissions
 - **Method / URL**: `PATCH /api/v1/companies/:id/team/:userId`
 - **Auth**: `Bearer <token>` (Company Owner only)
 
@@ -801,7 +1045,7 @@ Registers the employer's company. Validates legal business registration fields, 
 
 ---
 
-### 4.6 Remove Team Member
+### 4.8 Remove Team Member
 - **Method / URL**: `DELETE /api/v1/companies/:id/team/:userId`
 - **Auth**: `Bearer <token>` (Company Owner only)
 
@@ -817,19 +1061,170 @@ Registers the employer's company. Validates legal business registration fields, 
 
 ---
 
-### 4.7 Upload Company Verification Document
-Uploads a business verification document (e.g., GST Certificate or PAN Card for India; EIN Letter or Articles of Incorporation for US). The document type is dynamically validated against the company's Country Plugin.
+### 4.9 Invite Team Member via Email
+Sends an email invitation token to a colleague with pre-assigned permissions.
+
+- **Method / URL**: `POST /api/v1/companies/:id/invitations`
+- **Auth**: `Bearer <token>` (Company Owner only)
+
+#### Request Body
+```json
+{
+  "email": "sarah.hiringmanager@techcorp.io",
+  "permissions": [
+    "view_applications",
+    "manage_applications"
+  ]
+}
+```
+
+#### Response `(201 Created)`
+```json
+{
+  "success": true,
+  "statusCode": 201,
+  "message": "Team invitation sent successfully",
+  "data": {
+    "_id": "66b44a35e7b231123a8b45aa",
+    "company": "66b44a20e7b231123a8b4588",
+    "email": "sarah.hiringmanager@techcorp.io",
+    "permissions": ["view_applications", "manage_applications"],
+    "token": "7b8f9a0c1d2e3f4a5b6c7d8e9f0a1b2c",
+    "status": "pending",
+    "expiresAt": "2026-09-19T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 4.10 List Company Invitations
+- **Method / URL**: `GET /api/v1/companies/:id/invitations`
+- **Auth**: `Bearer <token>` (Company Owner only)
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Company invitations retrieved successfully",
+  "data": [
+    {
+      "_id": "66b44a35e7b231123a8b45aa",
+      "email": "sarah.hiringmanager@techcorp.io",
+      "permissions": ["view_applications", "manage_applications"],
+      "status": "pending",
+      "expiresAt": "2026-09-19T10:00:00.000Z",
+      "createdAt": "2026-09-12T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### 4.11 Revoke Invitation
+- **Method / URL**: `DELETE /api/v1/companies/:id/invitations/:inviteId`
+- **Auth**: `Bearer <token>` (Company Owner only)
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Invitation revoked successfully",
+  "data": {
+    "_id": "66b44a35e7b231123a8b45aa",
+    "status": "revoked"
+  }
+}
+```
+
+---
+
+### 4.12 Public Invitation Preview
+Retrieve invitation details from token to render the accept invitation onboarding screen.
+
+- **Method / URL**: `GET /api/v1/companies/invitations/:token`
+- **Auth**: None (Public)
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Invitation retrieved successfully",
+  "data": {
+    "_id": "66b44a35e7b231123a8b45aa",
+    "email": "sarah.hiringmanager@techcorp.io",
+    "company": {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc.",
+      "logoUrl": "https://storage.hireengine.com/logos/cloudscale.png"
+    },
+    "permissions": ["view_applications", "manage_applications"],
+    "expiresAt": "2026-09-19T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 4.13 Accept Invitation
+Accept team invitation. If the invitee already has an account, they can accept logged in. If they are new, they supply their name and password to register and join simultaneously.
+
+- **Method / URL**: `POST /api/v1/companies/invitations/:token/accept`
+- **Auth**: None (Public) or `Bearer <token>` (if already logged in)
+
+#### Request Body (For New Users)
+```json
+{
+  "firstName": "Sarah",
+  "lastName": "Taylor",
+  "password": "SecurePassword123!"
+}
+```
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Invitation accepted successfully",
+  "data": {
+    "user": {
+      "_id": "66b44a36e7b231123a8b45bb",
+      "firstName": "Sarah",
+      "lastName": "Taylor",
+      "email": "sarah.hiringmanager@techcorp.io",
+      "role": "employer"
+    },
+    "company": {
+      "_id": "66b44a20e7b231123a8b4588",
+      "name": "CloudScale Technologies Inc."
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+  }
+}
+```
+
+---
+
+### 4.14 Upload Company Verification Document
+Uploads a business verification document (e.g. GST Certificate or PAN Card for India; EIN Letter or Articles of Incorporation for US).
 
 - **Method / URL**: `POST /api/v1/companies/:id/documents`
-- **Auth**: `Bearer <token>` (Employer / Team member)
+- **Auth**: `Bearer <token>`
 - **Content-Type**: `multipart/form-data`
 
 #### Request Form Data
-
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `document` | `File` | **Yes** | File binary (PDF, Word doc/docx, JPG, PNG). Max 10 MB. |
-| `type` | `string` | **Yes** | Country-specific document type (e.g. `gst_certificate`, `pan_card`, `cin_certificate` for IN; `ein_letter`, `articles_of_incorporation`, `w9_form` for US) |
+| `type` | `string` | **Yes** | Country-specific document type (`gst_certificate`, `pan_card`, `cin_certificate`, `ein_letter`, `articles_of_incorporation`, etc.) |
 | `label` | `string` | No | Human-readable document label |
 
 #### Response `(201 Created)`
@@ -844,28 +1239,20 @@ Uploads a business verification document (e.g., GST Certificate or PAN Card for 
       "label": "GST Registration Certificate",
       "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
       "publicId": "doc_gst_cert_123.pdf",
-      "uploadedAt": "2026-09-03T10:30:00.000Z"
+      "uploadedAt": "2026-09-12T10:30:00.000Z"
     },
-    "documents": [
-      {
-        "type": "gst_certificate",
-        "label": "GST Registration Certificate",
-        "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
-        "publicId": "doc_gst_cert_123.pdf",
-        "uploadedAt": "2026-09-03T10:30:00.000Z"
-      }
-    ]
+    "documents": [ ... ]
   }
 }
 ```
 
 ---
 
-### 4.8 Get Company Documents & Verification Checklist
+### 4.15 Get Company Documents & Verification Checklist
 Returns all uploaded documents and an automated verification checklist showing which required documents have been uploaded vs. are still pending, computed directly from the company's Country Plugin.
 
 - **Method / URL**: `GET /api/v1/companies/:id/documents`
-- **Auth**: `Bearer <token>` (Employer / Team member)
+- **Auth**: `Bearer <token>`
 
 #### Response `(200 OK)`
 ```json
@@ -891,7 +1278,7 @@ Returns all uploaded documents and an automated verification checklist showing w
           "label": "GST Registration Certificate",
           "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
           "publicId": "doc_gst_cert_123.pdf",
-          "uploadedAt": "2026-09-03T10:30:00.000Z"
+          "uploadedAt": "2026-09-12T10:30:00.000Z"
         }
       },
       {
@@ -901,37 +1288,23 @@ Returns all uploaded documents and an automated verification checklist showing w
         "required": true,
         "isUploaded": false,
         "uploadedDocument": null
-      },
-      {
-        "type": "cin_certificate",
-        "label": "Certificate of Incorporation (CIN)",
-        "description": "Upload your Certificate of Incorporation from MCA",
-        "required": false,
-        "isUploaded": false,
-        "uploadedDocument": null
       }
     ],
-    "documents": [
-      {
-        "type": "gst_certificate",
-        "label": "GST Registration Certificate",
-        "fileUrl": "https://res.cloudinary.com/hire-engine/raw/upload/v1/documents/doc_gst_cert_123.pdf",
-        "publicId": "doc_gst_cert_123.pdf",
-        "uploadedAt": "2026-09-03T10:30:00.000Z"
-      }
-    ]
+    "documents": [ ... ]
   }
 }
 ```
 
 ---
 
-### 4.9 Send Company Phone Verification OTP
+### 4.16 Send Company Phone Verification OTP
 Dispatches a 6-digit one-time password (OTP) via SMS to the specified mobile number. Valid for 5 minutes.
 
+> [!IMPORTANT]
+> This route is protected and requires an authenticated recruiter (`Bearer <token>`).
+
 - **Method / URL**: `POST /api/v1/companies/phone/send-otp`
-- **Auth**: None / Public or Bearer
-- **Rate Limit**: 5 requests per 15 minutes per IP/number
+- **Auth**: `Bearer <token>`
 
 #### Request Body
 ```json
@@ -940,30 +1313,26 @@ Dispatches a 6-digit one-time password (OTP) via SMS to the specified mobile num
 }
 ```
 
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `phone` | `string` | **Yes** | Mobile number in international E.164 or national format (e.g. `+919876543210` or `9876543210`) |
-
 #### Response `(200 OK)`
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "OTP sent successfully to +919876543210",
+  "message": "OTP sent successfully to +919876543210. Valid for 5 minutes.",
   "data": {
-    "phone": "+919876543210",
-    "expiresIn": "5 minutes"
+    "success": true,
+    "message": "OTP sent successfully to +919876543210. Valid for 5 minutes."
   }
 }
 ```
 
 ---
 
-### 4.10 Verify Company Phone OTP
+### 4.17 Verify Company Phone OTP
 Verifies the SMS OTP and marks the company's phone number as verified (`isPhoneVerified: true`).
 
 - **Method / URL**: `POST /api/v1/companies/:id/phone/verify-otp`
-- **Auth**: `Bearer <token>` (Company owner or authorized team member)
+- **Auth**: `Bearer <token>`
 
 #### Request Body
 ```json
@@ -972,11 +1341,6 @@ Verifies the SMS OTP and marks the company's phone number as verified (`isPhoneV
   "otp": "492810"
 }
 ```
-
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `phone` | `string` | **Yes** | Phone number the OTP was issued to |
-| `otp` | `string` | **Yes** | 6-digit numeric OTP code |
 
 #### Response `(200 OK)`
 ```json
@@ -997,7 +1361,7 @@ Verifies the SMS OTP and marks the company's phone number as verified (`isPhoneV
 
 ---
 
-### 4.11 Employer Verification Lifecycle & Job Publishing Gate
+### 4.18 Employer Verification Lifecycle & Job Publishing Gate
 
 All employers must undergo compliance verification before their job listings appear publicly to job seekers.
 
@@ -1030,20 +1394,27 @@ All employers must undergo compliance verification before their job listings app
 | Status | Recruiter UI Experience | Allowed Actions | Action to Complete |
 | :--- | :--- | :--- | :--- |
 | `pending` | Banner: *"Company profile pending verification. Review SLA: ~24-48 hours."* | Create draft jobs, configure hiring pipelines, invite team members. | Wait for admin review or upload additional compliance documents. |
-| `under_review` | Banner: *"Your verification is under detailed compliance review."* | Create draft jobs, manage team. | Our compliance team is verifying your business documents. |
-| `information_required` | Warning Banner: *"Action Required: Additional documentation requested by compliance team."* Displays `infoRequestedNotes`. | Upload missing documents via `POST /api/v1/companies/:id/documents`. | Review feedback notes and upload the requested certificates/licenses. |
-| `approved` | Success Badge: *"Verified Employer"* | Full platform access: publish live jobs, search talent database, view candidate contact details. | Ready to hire. |
-| `rejected` | Alert: *"Verification failed. Reason: [Notes]"* | View account settings; job publishing locked. | Contact compliance support with proof of business ownership. |
+| `under_review` | Banner: *"Your verification is under detailed compliance review."* | Create draft jobs, manage team. | Compliance team is verifying business documents. |
+| `information_required` | Warning Banner: *"Action Required: Additional documentation requested by compliance team."* Displays `infoRequestedNotes`. | Upload missing documents via `POST /api/v1/companies/:id/documents`. | Review feedback notes and upload the requested certificates. |
+| `approved` | Success Badge: *"Verified Employer"* | Full platform access: publish live jobs, search talent database. | Ready to hire. |
+| `rejected` | Alert: *"Verification failed. Reason: [Notes]"* | View account settings; job publishing locked. | Contact compliance support with proof of business registration. |
 
-> **Job Publishing Protection**:
-> When a company is in `pending`, `under_review`, or `information_required` status, calling `POST /api/v1/jobs` with `status: "active"` or updating an existing draft to `"active"` will return `403 Forbidden` (`"Your company profile must be verified before you can publish active job postings"`). You can draft jobs anytime, which can be published with 1 click once approved.
+> **Job Publishing Gate**:
+> If a company is in `pending`, `under_review`, or `information_required` status, calling `POST /api/v1/jobs` with `publishNow: true` or updating an existing draft to `"active"` will return `403 Forbidden`:
+> `"Company account is currently 'pending'. In India, company profile verification must be approved before publishing active job listings. You can save your job as a draft in the meantime."`
+> Draft jobs can be saved anytime and published with 1 click once approved.
 
 ---
 
 ## 5. Job Postings Lifecycle Management
 
 ### 5.1 Create Detailed Job Posting
-Creates a new job listing for the employer's company. Status can start as `"draft"` or `"active"` (active publishing requires an approved company profile).
+Creates a new job listing for the employer's company.
+
+> [!IMPORTANT]
+> **Active Subscription Required**:
+> The backend enforces that the company must have an active subscription with remaining job quota (`subscription.hasJobPostQuota()`). If no active subscription exists, returns `403 Forbidden` (`"An active subscription is required to post jobs. Please subscribe to a plan."`).
+> If `publishNow: true` or `status: "active"`, the company must also have `verificationStatus: "approved"`. Otherwise, jobs default to status `"draft"`.
 
 - **Method / URL**: `POST /api/v1/jobs`
 - **Auth**: `Bearer <token>` (Requires role `employer` & `manage_jobs` permission)
@@ -1054,7 +1425,7 @@ Creates a new job listing for the employer's company. Status can start as `"draf
   "companyId": "66b44a20e7b231123a8b4588",
   "title": "Senior Full Stack Engineer (React / Node.js)",
   "description": "We are seeking an experienced Full Stack Engineer to lead architecture on our real-time analytics engine...",
-  "responsibilities": "• Architect distributed services in Node.js and TypeScript\n• Build high performance UI in React\n• Mentor engineers",
+  "responsibilities": "• Architect distributed services in Node.js and TypeScript\n• Build high performance UI in React\n• Mentor junior engineers",
   "qualifications": "• 5+ years of production experience with Node.js and React\n• Strong knowledge of MongoDB and Redis\n• Experience with AWS/Docker",
   "skills": ["React", "Node.js", "TypeScript", "MongoDB", "Redis", "Docker", "AWS"],
   "category": "Engineering",
@@ -1086,6 +1457,7 @@ Creates a new job listing for the employer's company. Status can start as `"draf
   "education": "bachelor",
   "benefits": ["Health, Dental & Vision", "401(k) Matching", "Flexible PTO", "Annual Learning Stipend"],
   "applicationDeadline": "2026-12-31T23:59:59.000Z",
+  "publishNow": false,
   "screeningQuestions": [
     {
       "question": "Do you have at least 5 years of professional JavaScript / TypeScript experience?",
@@ -1099,22 +1471,23 @@ Creates a new job listing for the employer's company. Status can start as `"draf
       "required": true,
       "options": ["AWS", "GCP", "Azure", "None"],
       "idealAnswer": "AWS"
-    },
-    {
-      "question": "How many years of microservices architecture experience do you have?",
-      "type": "numeric",
-      "required": false,
-      "idealAnswer": "5"
     }
   ]
 }
 ```
 
-#### Field Specifications:
-- `employmentType`: `'full-time'` | `'part-time'` | `'contract'` | `'internship'`
-- `workplaceType`: `'remote'` | `'hybrid'` | `'onsite'`
-- `experienceLevel`: `'entry'` | `'mid'` | `'senior'` | `'lead'` | `'executive'`
-- `screeningQuestions[].type`: `'yes_no'` | `'multiple_choice'` | `'text'` | `'numeric'`
+| Field | Type | Required | Constraints |
+| :--- | :--- | :--- | :--- |
+| `companyId` | `string` | **Yes** | 24-char ObjectId of the recruiter's company |
+| `title` | `string` | **Yes** | 3–200 characters |
+| `description` | `string` | **Yes** | 50–10,000 characters |
+| `skills` | `string[]` | **Yes** | 1–30 skill tags |
+| `employmentType` | `string` | **Yes** | `'full-time'`, `'part-time'`, `'contract'`, `'internship'` |
+| `workplaceType` | `string` | **Yes** | `'remote'`, `'hybrid'`, `'onsite'` |
+| `location` | `object` | **Yes** | Requires `city` and `country`. Coordinates sanitized automatically |
+| `publishNow` | `boolean` | No | Defaults to `false` (creates as `draft`). If `true`, attempts to publish directly |
+| `screeningQuestions`| `array` | No | Up to 10 questions. Types: `'yes_no'`, `'multiple_choice'`, `'text'`, `'numeric'` |
+| `salaryRange` | `object` | No | `{ min, max, currency, period: 'hourly'\|'monthly'\|'annually', isVisible }` |
 
 #### Response `(201 Created)`
 ```json
@@ -1125,7 +1498,7 @@ Creates a new job listing for the employer's company. Status can start as `"draf
   "data": {
     "_id": "66b44a50e7b231123a8b4610",
     "company": "66b44a20e7b231123a8b4588",
-    "creator": "66b44a10e7b231123a8b4567",
+    "postedBy": "66b44a10e7b231123a8b4567",
     "title": "Senior Full Stack Engineer (React / Node.js)",
     "status": "draft",
     "skills": ["React", "Node.js", "TypeScript", "MongoDB", "Redis", "Docker", "AWS"],
@@ -1133,7 +1506,7 @@ Creates a new job listing for the employer's company. Status can start as `"draf
     "clickCount": 0,
     "applicationCount": 0,
     "isSponsored": false,
-    "createdAt": "2026-08-21T10:20:00.000Z"
+    "createdAt": "2026-09-12T10:20:00.000Z"
   }
 }
 ```
@@ -1181,7 +1554,7 @@ Fetches all jobs belonging to the recruiter's company with application counts an
       "clickCount": 189,
       "applicationCount": 38,
       "isSponsored": true,
-      "createdAt": "2026-08-21T10:20:00.000Z"
+      "createdAt": "2026-09-12T10:20:00.000Z"
     }
   ],
   "meta": {
@@ -1201,7 +1574,7 @@ Fetches all jobs belonging to the recruiter's company with application counts an
 
 ### 5.3 Get Single Job Details
 - **Method / URL**: `GET /api/v1/jobs/:id`
-- **Auth**: Optional / Public
+- **Auth**: Optional / Public or `Bearer <token>`
 
 #### Response `(200 OK)`
 ```json
@@ -1263,7 +1636,7 @@ Fetches all jobs belonging to the recruiter's company with application counts an
 ---
 
 ### 5.5 Update Job Status (Publish / Pause / Close)
-*Note: Transitioning a job from `draft` to `active` automatically triggers background AI vector embedding generation and matches candidate saved-search alerts.*
+When a job transitions to `"active"` (publishing), the backend automatically triggers background AI vector embedding generation and matches candidate saved-search alerts.
 
 - **Method / URL**: `PATCH /api/v1/jobs/:id/status`
 - **Auth**: `Bearer <token>`
@@ -1274,7 +1647,7 @@ Fetches all jobs belonging to the recruiter's company with application counts an
   "status": "active"
 }
 ```
-*(Valid status values: `"active"`, `"paused"`, `"closed"`)*
+*(Valid status values in this endpoint: `"active"`, `"paused"`, `"closed"`)*
 
 #### Response `(200 OK)`
 ```json
@@ -1320,8 +1693,8 @@ Boost visibility of the job posting in candidate search feeds.
       "totalBudget": 250,
       "spent": 0,
       "currency": "USD",
-      "startDate": "2026-08-21T10:30:00.000Z",
-      "endDate": "2026-08-31T10:30:00.000Z"
+      "startDate": "2026-09-12T10:30:00.000Z",
+      "endDate": "2026-09-22T10:30:00.000Z"
     }
   }
 }
@@ -1335,15 +1708,15 @@ Boost visibility of the job posting in candidate search feeds.
 Retrieve candidate applications for a specific job posting with filtering and pagination.
 
 - **Method / URL**: `GET /api/v1/applications/jobs/:jobId/applications`
-- **Auth**: `Bearer <token>`
+- **Auth**: `Bearer <token>` (Employer team member)
 
 #### Query Parameters
 | Param | Type | Description |
 | :--- | :--- | :--- |
-| `status` | `string` | `submitted`, `viewed`, `screening`, `interview`, `offer`, `hired`, `rejected` |
-| `stage` | `string` | Custom pipeline stage (e.g. `"Technical Interview"`, `"New"`) |
+| `status` | `string` | Filter by status: `submitted`, `viewed`, `screening`, `interview`, `offer`, `hired`, `rejected`, `withdrawn` |
+| `stage` | `string` | Custom pipeline stage (e.g. `"Technical Interview"`) |
 | `minRating` | `number` | Minimum rating filter `1`-`5` |
-| `sort` | `string` | `rating` (descending rating) or `-appliedAt` (default) |
+| `sort` | `string` | `rating` (sorts by `-rating -appliedAt`) or default (`-appliedAt`) |
 | `page` | `number` | Page number |
 | `limit` | `number` | Limit per page |
 
@@ -1369,7 +1742,7 @@ Retrieve candidate applications for a specific job posting with filtering and pa
           "state": "CA",
           "country": "United States"
         },
-        "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS", "GraphQL"]
+        "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS"]
       },
       "resume": {
         "_id": "66b44a80e7b231123a8b4655",
@@ -1385,11 +1758,11 @@ Retrieve candidate applications for a specific job posting with filtering and pa
       "screeningAnswers": [
         {
           "questionIndex": 0,
-          "question": "Do you have at least 5 years of professional JavaScript / TypeScript experience?",
+          "question": "Do you have at least 5 years of professional JavaScript experience?",
           "answer": "Yes, 6.5 years"
         }
       ],
-      "appliedAt": "2026-08-21T09:15:00.000Z"
+      "appliedAt": "2026-09-12T09:15:00.000Z"
     }
   ],
   "meta": {
@@ -1407,8 +1780,66 @@ Retrieve candidate applications for a specific job posting with filtering and pa
 
 ---
 
-### 6.2 AI Candidate Fit Score & Scorecard
-Uses Google Gemini AI to analyze candidate's parsed resume against the job requirements, providing an instant compatibility scorecard, strengths, and missing skills.
+### 6.2 Get Single Candidate Application Details
+Inspect complete application details including candidate contact info, populated resume, cover letter, screening Q&A answers, recruiter star rating, and audit status history.
+
+- **Method / URL**: `GET /api/v1/applications/:id`
+- **Auth**: `Bearer <token>` (Employer team member)
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Application retrieved successfully",
+  "data": {
+    "_id": "66b44a60e7b231123a8b4633",
+    "job": {
+      "_id": "66b44a50e7b231123a8b4610",
+      "title": "Senior Full Stack Engineer (React / Node.js)",
+      "company": "66b44a20e7b231123a8b4588"
+    },
+    "applicant": {
+      "_id": "66b44a70e7b231123a8b4644",
+      "firstName": "Michael",
+      "lastName": "Chen",
+      "email": "michael.chen@devmail.com",
+      "phone": "+14155551234",
+      "headline": "Senior Full-Stack JavaScript Developer",
+      "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS"]
+    },
+    "resume": {
+      "_id": "66b44a80e7b231123a8b4655",
+      "title": "Michael_Chen_Senior_FullStack.pdf",
+      "fileUrl": "https://storage.hireengine.com/resumes/66b44a80.pdf",
+      "parsedData": { ... }
+    },
+    "coverLetter": "...",
+    "status": "screening",
+    "pipelineStage": "Screening",
+    "rating": 5,
+    "isEasyApply": true,
+    "screeningAnswers": [ ... ],
+    "statusHistory": [
+      {
+        "status": "submitted",
+        "changedAt": "2026-09-12T09:15:00.000Z"
+      },
+      {
+        "status": "screening",
+        "changedAt": "2026-09-12T10:00:00.000Z",
+        "note": "Screening passed"
+      }
+    ],
+    "appliedAt": "2026-09-12T09:15:00.000Z"
+  }
+}
+```
+
+---
+
+### 6.3 AI Candidate Fit Score & Scorecard
+Uses Google Gemini AI to analyze the candidate's parsed resume against the job requirements, providing an instant compatibility scorecard, strengths, and missing skills.
 
 - **Method / URL**: `GET /api/v1/applications/:id/fit`
 - **Auth**: `Bearer <token>`
@@ -1444,8 +1875,8 @@ Uses Google Gemini AI to analyze candidate's parsed resume against the job requi
 
 ---
 
-### 6.3 Update Candidate Pipeline Stage & Status
-Advance candidate through hiring stages (e.g. from `screening` to `interview` or `offer`).
+### 6.4 Update Candidate Pipeline Stage & Status
+Advance candidate through hiring stages (e.g. from `screening` to `interview` or `offer`). Optionally appends an internal recruiter note.
 
 - **Method / URL**: `PATCH /api/v1/applications/:id/status`
 - **Auth**: `Bearer <token>`
@@ -1481,7 +1912,7 @@ Advance candidate through hiring stages (e.g. from `screening` to `interview` or
 
 ---
 
-### 6.4 Add Internal Recruiter Note & Rating
+### 6.5 Add Internal Recruiter Note & Rating
 Add internal comments, interview feedback, and score ratings visible only to team recruiters.
 
 - **Method / URL**: `POST /api/v1/applications/:id/notes`
@@ -1509,25 +1940,20 @@ Add internal comments, interview feedback, and score ratings visible only to tea
     "content": "Superb coding interview. Demonstrated clean architecture and deep knowledge of event-driven concurrency.",
     "rating": 5,
     "isPrivate": false,
-    "createdAt": "2026-08-21T11:00:00.000Z"
+    "createdAt": "2026-09-12T11:00:00.000Z"
   }
 }
 ```
 
 ---
 
-### 6.5 List Candidate Application Notes
-Retrieve all internal notes and interview evaluations associated with a candidate application.
-- **Privacy Enforcement**: Private notes (`isPrivate: true`) are **only returned to the user who authored them**. Other team members will only receive non-private notes.
+### 6.6 List Candidate Application Notes
+Retrieve internal notes and interview evaluations associated with a candidate application.
+- **Privacy Enforcement**: Private notes (`isPrivate: true`) are **only returned to the user who authored them**.
 - **Sorting**: Returned in reverse chronological order (newest first).
 
 - **Method / URL**: `GET /api/v1/applications/:id/notes`
-- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
-
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | MongoDB ObjectId of the application (24-char hex) |
+- **Auth**: `Bearer <token>`
 
 #### Response `(200 OK)`
 ```json
@@ -1549,8 +1975,8 @@ Retrieve all internal notes and interview evaluations associated with a candidat
       "content": "Superb coding interview. Demonstrated clean architecture and deep knowledge of event-driven concurrency.",
       "rating": 5,
       "isPrivate": false,
-      "createdAt": "2026-08-21T11:00:00.000Z",
-      "updatedAt": "2026-08-21T11:00:00.000Z"
+      "createdAt": "2026-09-12T11:00:00.000Z",
+      "updatedAt": "2026-09-12T11:00:00.000Z"
     }
   ]
 }
@@ -1558,19 +1984,12 @@ Retrieve all internal notes and interview evaluations associated with a candidat
 
 ---
 
-### 6.6 Update Candidate Note
-Update the content, rating, or privacy status of an existing candidate note.
-- **Authorization**: Only the **original author** of the note can update it (`403 Forbidden` if attempted by another team member).
-- **Application Rating Sync**: If `rating` is included, the top-level application rating is automatically updated to stay in sync. Pass `rating: null` to unset the rating.
+### 6.7 Update Candidate Note
+- **Authorization**: Only the original author of the note can update it (`403 Forbidden` otherwise).
+- **Application Rating Sync**: If `rating` is included, the top-level application rating is automatically updated to stay in sync. Pass `rating: null` to unset.
 
 - **Method / URL**: `PUT /api/v1/applications/:id/notes/:noteId`
 - **Auth**: `Bearer <token>` (Author only)
-
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | Application ObjectId |
-| `noteId` | `string` | **Yes** | Note ObjectId |
 
 #### Request Body *(At least one field required)*
 ```json
@@ -1580,12 +1999,6 @@ Update the content, rating, or privacy status of an existing candidate note.
   "isPrivate": true
 }
 ```
-
-| Field | Type | Required | Constraints |
-| :--- | :--- | :--- | :--- |
-| `content` | `string` | No | 1–2,000 characters |
-| `rating` | `number \| null` | No | Integer `1`–`5`, or `null` to clear |
-| `isPrivate` | `boolean` | No | `true` or `false` |
 
 #### Response `(200 OK)`
 ```json
@@ -1600,40 +2013,32 @@ Update the content, rating, or privacy status of an existing candidate note.
     "content": "Updated: Completed technical debrief. Highly recommended for offer.",
     "rating": 5,
     "isPrivate": true,
-    "createdAt": "2026-08-21T11:00:00.000Z",
-    "updatedAt": "2026-08-21T11:30:00.000Z"
+    "createdAt": "2026-09-12T11:00:00.000Z",
+    "updatedAt": "2026-09-12T11:30:00.000Z"
   }
 }
 ```
 
 ---
 
-### 6.7 Delete Candidate Note
-Permanently delete an internal candidate note.
-- **Authorization**: Only the **original author** of the note can delete it (`403 Forbidden` otherwise).
-
+### 6.8 Delete Candidate Note
+- **Authorization**: Only the original author can delete their note.
 - **Method / URL**: `DELETE /api/v1/applications/:id/notes/:noteId`
 - **Auth**: `Bearer <token>` (Author only)
 
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | Application ObjectId |
-| `noteId` | `string` | **Yes** | Note ObjectId |
-
 #### Response `(204 No Content)`
-```
+```http
 HTTP/1.1 204 No Content
 ```
 *(No response body returned on successful deletion)*
 
 ---
 
-### 6.8 Rate Candidate (1–5 Stars)
+### 6.9 Rate Candidate (1–5 Stars)
 Quickly set or update the candidate's star score (1–5) on the application.
 
 - **Method / URL**: `POST /api/v1/applications/:id/rate`
-- **Auth**: `Bearer <token>` (Employer or Admin)
+- **Auth**: `Bearer <token>`
 
 #### Request Body
 ```json
@@ -1641,10 +2046,6 @@ Quickly set or update the candidate's star score (1–5) on the application.
   "rating": 5
 }
 ```
-
-| Field | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `rating` | `integer` | **Yes** | Candidate star score between `1` and `5` |
 
 #### Response `(200 OK)`
 ```json
@@ -1654,25 +2055,19 @@ Quickly set or update the candidate's star score (1–5) on the application.
   "message": "Candidate rated successfully",
   "data": {
     "_id": "66b44a60e7b231123a8b4633",
-    "job": "66b44a50e7b231123a8b4610",
-    "applicant": "66b44a70e7b231123a8b4644",
-    "status": "screening",
-    "pipelineStage": "Technical Interview",
     "rating": 5,
-    "appliedAt": "2026-08-21T09:15:00.000Z",
-    "createdAt": "2026-08-21T09:15:00.000Z",
-    "updatedAt": "2026-08-21T11:45:00.000Z"
+    "updatedAt": "2026-09-12T11:45:00.000Z"
   }
 }
 ```
 
 ---
 
-### 6.9 Clear Candidate Rating
+### 6.10 Clear Candidate Rating
 Resets the candidate's star rating to `null`.
 
 - **Method / URL**: `DELETE /api/v1/applications/:id/rate`
-- **Auth**: `Bearer <token>` (Employer or Admin)
+- **Auth**: `Bearer <token>`
 
 #### Response `(200 OK)`
 ```json
@@ -1682,22 +2077,15 @@ Resets the candidate's star rating to `null`.
   "message": "Candidate rating cleared successfully",
   "data": {
     "_id": "66b44a60e7b231123a8b4633",
-    "job": "66b44a50e7b231123a8b4610",
-    "applicant": "66b44a70e7b231123a8b4644",
-    "status": "screening",
-    "pipelineStage": "Technical Interview",
-    "rating": null,
-    "appliedAt": "2026-08-21T09:15:00.000Z",
-    "createdAt": "2026-08-21T09:15:00.000Z",
-    "updatedAt": "2026-08-21T12:00:00.000Z"
+    "rating": null
   }
 }
 ```
 
 ---
 
-### 6.10 Send Bulk Email to Applicants
-Dispatch template-based or customized emails with dynamic placeholders (`{{candidateName}}`, `{{jobTitle}}`) to multiple candidates simultaneously.
+### 6.11 Send Bulk Email to Applicants
+Dispatch customized emails with dynamic placeholders (`{{candidateName}}`, `{{jobTitle}}`) to multiple candidates simultaneously.
 
 - **Method / URL**: `POST /api/v1/applications/bulk-email`
 - **Auth**: `Bearer <token>`
@@ -1707,11 +2095,10 @@ Dispatch template-based or customized emails with dynamic placeholders (`{{candi
 {
   "applicationIds": [
     "66b44a60e7b231123a8b4633",
-    "66b44a61e7b231123a8b4634",
-    "66b44a62e7b231123a8b4635"
+    "66b44a61e7b231123a8b4634"
   ],
   "subject": "Update on your application for {{jobTitle}} at CloudScale",
-  "body": "Hi {{candidateName}},\n\nThank you for applying for the {{jobTitle}} role. We were very impressed with your background and would like to invite you for an introductory call.\n\nPlease pick a time here: https://calendly.com/cloudscale-talent\n\nBest regards,\nCloudScale Recruiting Team"
+  "body": "Hi {{candidateName}},\n\nThank you for applying for the {{jobTitle}} role. We would like to invite you for an introductory call.\n\nBest regards,\nCloudScale Recruiting Team"
 }
 ```
 
@@ -1722,8 +2109,8 @@ Dispatch template-based or customized emails with dynamic placeholders (`{{candi
   "statusCode": 200,
   "message": "Bulk email process completed",
   "data": {
-    "totalSent": 3,
-    "successful": 3,
+    "totalSent": 2,
+    "successful": 2,
     "failed": 0
   }
 }
@@ -1733,13 +2120,12 @@ Dispatch template-based or customized emails with dynamic placeholders (`{{candi
 
 ## 7. Talent Sourcing, Resume Database & AI Semantic Match
 
-##
-# 7.1 Advanced Boolean & Hybrid Resume Search
+### 7.1 Advanced Boolean & Hybrid Resume Search
 Search candidate resume database using Boolean logic, skills, experience range, location, and AI semantic matching.
 - **Privacy Enforcement**: Only active candidates with `profileVisibility: "public"` who have not requested account deletion are returned.
 - **Search Modes**:
-  - `keyword`: MongoDB `$text` Boolean search (AND/OR/NOT operators, phrase matching).
-  - `semantic`: Pure Gemini vector embedding search via MongoDB Atlas `$vectorSearch`.
+  - `keyword`: MongoDB text Boolean search (AND/OR/NOT operators).
+  - `semantic`: Pure vector embedding search via MongoDB Atlas `$vectorSearch`.
   - `hybrid` *(default)*: Runs keyword and semantic in parallel, merges, deduplicates, and re-ranks with weighted scoring (`0.4 × keyword + 0.6 × semantic`).
 
 - **Method / URL**: `GET /api/v1/search/resumes`
@@ -1748,16 +2134,16 @@ Search candidate resume database using Boolean logic, skills, experience range, 
 #### Query Parameters
 | Param | Type | Required | Default | Example | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `q` | `string` | No | `""` | `(React OR Vue) AND Node.js NOT Angular` | Boolean search query string |
+| `q` | `string` | No | `""` | `(React OR Vue) AND Node.js` | Boolean search query string |
 | `skills` | `string` | No | `""` | `TypeScript, Docker, AWS` | Comma-separated required skills |
-| `location` | `string` | No | `""` | `San Francisco, CA` | City, State or Country (matches parsed location & experience) |
-| `experienceMin`| `number` | No | — | `5` | Minimum years of total experience |
-| `experienceMax`| `number` | No | — | `12` | Maximum years of total experience |
+| `location` | `string` | No | `""` | `San Francisco, CA` | Location string |
+| `experienceMin` | `number` | No | — | `5` | Minimum years of experience |
+| `experienceMax` | `number` | No | — | `12` | Maximum years of experience |
 | `education` | `string` | No | `""` | `bachelor` | `high_school`, `associate`, `bachelor`, `master`, `doctorate`, `any` |
 | `mode` | `string` | No | `hybrid` | `hybrid` | `keyword`, `semantic`, `hybrid` |
 | `sort` | `string` | No | `relevance` | `relevance` | `relevance`, `experience`, `date` |
-| `page` | `number` | No | `1` | `1` | Page number (minimum: 1) |
-| `limit` | `number` | No | `20` | `20` | Items per page (min: 1, max: 100) |
+| `page` | `number` | No | `1` | `1` | Page number |
+| `limit` | `number` | No | `20` | `20` | Max results per page (1–100) |
 
 #### Response `(200 OK)`
 ```json
@@ -1779,66 +2165,23 @@ Search candidate resume database using Boolean logic, skills, experience range, 
       },
       "title": "Michael Chen - Senior Full Stack Engineer",
       "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/michael_chen.pdf",
-      "publicId": "resumes/michael_chen_1789106000",
-      "fileType": "pdf",
-      "fileSize": 1048576,
-      "originalFileName": "Michael_Chen_Resume.pdf",
-      "isDefault": true,
       "parsedData": {
         "personalInfo": {
           "name": "Michael Chen",
           "email": "michael.chen@devmail.com",
           "phone": "+14155551234",
-          "location": "San Francisco, CA",
-          "linkedin": "https://linkedin.com/in/michaelchen",
-          "github": "https://github.com/michaelchen",
-          "portfolio": "https://michaelchen.dev"
+          "location": "San Francisco, CA"
         },
         "headline": "Senior Full Stack Cloud Engineer",
-        "summary": "Full Stack Software Engineer with 6+ years building microservices and web applications...",
-        "experience": [
-          {
-            "company": "ScaleTech Systems",
-            "title": "Senior Software Engineer",
-            "location": "San Francisco, CA",
-            "startDate": "2022-01-01",
-            "endDate": null,
-            "current": true,
-            "description": "Led backend architecture for payments service processing $50M/year.",
-            "highlights": [
-              "Designed microservices with Node.js, MongoDB, and Redis",
-              "Reduced API latency by 40% using optimized vector search indexing"
-            ]
-          }
-        ],
-        "education": [
-          {
-            "institution": "University of California, Berkeley",
-            "degree": "Bachelor of Science",
-            "field": "Computer Science",
-            "graduationYear": 2020
-          }
-        ],
-        "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS", "MongoDB", "GraphQL"],
-        "certifications": [
-          {
-            "name": "AWS Certified Solutions Architect",
-            "issuer": "Amazon Web Services",
-            "year": 2023
-          }
-        ],
-        "languages": ["English"],
+        "skills": ["React", "TypeScript", "Node.js", "Docker", "AWS", "MongoDB"],
         "totalYearsOfExperience": 6.5
       },
       "relevanceScore": 0.9412,
-      "createdAt": "2026-08-21T10:30:00.000Z",
-      "updatedAt": "2026-08-21T10:30:00.000Z"
+      "createdAt": "2026-09-12T10:30:00.000Z"
     }
   ],
   "meta": {
     "searchMode": "hybrid",
-    "keywordResults": 14,
-    "semanticResults": 10,
     "pagination": {
       "currentPage": 1,
       "totalPages": 1,
@@ -1855,17 +2198,10 @@ Search candidate resume database using Boolean logic, skills, experience range, 
 
 ### 7.2 Find Candidates Similar to a Top Candidate
 Find candidate resumes in the database that have similar skills and background to a high-performing candidate using MongoDB Atlas vector similarity (`$vectorSearch`).
-- **Privacy Enforcement**: Only candidates with `profileVisibility: "public"` and `status: "active"` are returned.
 - **Source Filtering**: The target `resumeId` itself is automatically excluded from the similarity results.
 
-- **Method / URL**: `GET /api/v1/search/resumes/similar/:resumeId`
-- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
-
-#### URL Parameters & Query Parameters
-| Param | In | Type | Required | Default | Description |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `resumeId` | path | `string` | **Yes** | — | MongoDB ObjectId of the source candidate resume |
-| `limit` | query | `number` | No | `10` | Maximum similar candidates to return (min: 1, max: 50) |
+- **Method / URL**: `GET /api/v1/search/resumes/similar/:resumeId?limit=10`
+- **Auth**: `Bearer <token>` (Employer or Admin)
 
 #### Response `(200 OK)`
 ```json
@@ -1881,23 +2217,14 @@ Find candidate resumes in the database that have similar skills and background t
         "firstName": "David",
         "lastName": "Miller",
         "email": "david.miller@devmail.com",
-        "profileVisibility": "public",
-        "status": "active"
+        "profileVisibility": "public"
       },
       "title": "David Miller - Full Stack Architect",
-      "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/david_miller.pdf",
-      "fileType": "pdf",
       "parsedData": {
-        "personalInfo": {
-          "name": "David Miller",
-          "location": "Austin, TX"
-        },
-        "headline": "Lead Frontend / Full Stack Architect",
         "skills": ["React", "Node.js", "TypeScript", "Next.js", "AWS"],
         "totalYearsOfExperience": 8
       },
-      "semanticScore": 0.8921,
-      "createdAt": "2026-08-15T09:12:00.000Z"
+      "semanticScore": 0.8921
     }
   ]
 }
@@ -1907,18 +2234,9 @@ Find candidate resumes in the database that have similar skills and background t
 
 ### 7.3 AI-Rank All Candidate Resumes Against a Job Posting
 Ranks the candidate database against the exact job description using high-dimensional cosine similarity embeddings via MongoDB Atlas Vector Search.
-- **Privacy Enforcement**: Only candidates with `profileVisibility: "public"` and `status: "active"` are returned.
-- **Query Vector**: Uses the pre-computed job embedding vector or synthesizes a dynamic query embedding from the job title, description, skills, and qualifications.
 
-- **Method / URL**: `GET /api/v1/search/resumes/rank-by-job/:jobId`
-- **Auth**: `Bearer <token>` (Requires role `employer` or `admin`)
-
-#### URL Parameters & Query Parameters
-| Param | In | Type | Required | Default | Description |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `jobId` | path | `string` | **Yes** | — | MongoDB ObjectId of the job posting |
-| `page` | query | `number` | No | `1` | Pagination page number |
-| `limit` | query | `number` | No | `20` | Max results per page (min: 1, max: 100) |
+- **Method / URL**: `GET /api/v1/search/resumes/rank-by-job/:jobId?page=1&limit=20`
+- **Auth**: `Bearer <token>` (Employer or Admin)
 
 #### Response `(200 OK)`
 ```json
@@ -1932,22 +2250,9 @@ Ranks the candidate database against the exact job description using high-dimens
       "user": {
         "_id": "66b44a70e7b231123a8b4644",
         "firstName": "Michael",
-        "lastName": "Chen",
-        "email": "michael.chen@devmail.com",
-        "profileVisibility": "public",
-        "status": "active"
+        "lastName": "Chen"
       },
       "title": "Michael Chen - Senior Full Stack Engineer",
-      "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/michael_chen.pdf",
-      "fileType": "pdf",
-      "parsedData": {
-        "headline": "Senior Full Stack Cloud Engineer",
-        "skills": ["React", "TypeScript", "Node.js", "AWS", "MongoDB"],
-        "totalYearsOfExperience": 6.5,
-        "personalInfo": {
-          "location": "San Francisco, CA"
-        }
-      },
       "semanticScore": 0.9412
     }
   ],
@@ -1992,7 +2297,7 @@ Save recurring talent queries and receive email/SMS notifications when new match
 | :--- | :--- | :--- | :--- | :--- |
 | `name` | `string` | **Yes** | — | Name for this saved alert (1–100 chars) |
 | `searchType` | `string` | No | `"jobs"` | Target search type: `"jobs"` or `"resumes"` |
-| `filters` | `object` | **Yes** | — | Search criteria (supports `q`, `skills`, `location`, `experienceMin`, etc.) |
+| `filters` | `object` | **Yes** | — | Search criteria object |
 | `emailAlert` | `boolean` | No | `true` | Send matching candidate updates via email |
 | `smsAlert` | `boolean` | No | `false` | Send matching candidate updates via SMS |
 | `frequency` | `string` | No | `"daily"` | Alert schedule: `"instant"`, `"daily"`, or `"weekly"` |
@@ -2005,20 +2310,11 @@ Save recurring talent queries and receive email/SMS notifications when new match
   "message": "Search criteria saved successfully",
   "data": {
     "_id": "66b44ac0e7b231123a8b4711",
-    "user": "66b44a20e7b231123a8b4588",
+    "user": "66b44a10e7b231123a8b4567",
     "name": "SF Senior React & Node Engineers",
     "searchType": "resumes",
-    "filters": {
-      "q": "React AND Node.js",
-      "location": "San Francisco, CA",
-      "experienceMin": 5
-    },
-    "emailAlert": true,
-    "smsAlert": false,
     "frequency": "daily",
-    "lastAlertSentAt": null,
-    "createdAt": "2026-08-21T11:20:00.000Z",
-    "updatedAt": "2026-08-21T11:20:00.000Z"
+    "createdAt": "2026-09-12T11:20:00.000Z"
   }
 }
 ```
@@ -2026,8 +2322,6 @@ Save recurring talent queries and receive email/SMS notifications when new match
 ---
 
 ### 7.5 List Saved Searches
-Retrieve all saved search queries and alert configs for the authenticated recruiter.
-
 - **Method / URL**: `GET /api/v1/search/saved`
 - **Auth**: `Bearer <token>`
 
@@ -2040,20 +2334,9 @@ Retrieve all saved search queries and alert configs for the authenticated recrui
   "data": [
     {
       "_id": "66b44ac0e7b231123a8b4711",
-      "user": "66b44a20e7b231123a8b4588",
       "name": "SF Senior React & Node Engineers",
       "searchType": "resumes",
-      "filters": {
-        "q": "React AND Node.js",
-        "location": "San Francisco, CA",
-        "experienceMin": 5
-      },
-      "emailAlert": true,
-      "smsAlert": false,
-      "frequency": "daily",
-      "lastAlertSentAt": null,
-      "createdAt": "2026-08-21T11:20:00.000Z",
-      "updatedAt": "2026-08-21T11:20:00.000Z"
+      "frequency": "daily"
     }
   ]
 }
@@ -2062,22 +2345,16 @@ Retrieve all saved search queries and alert configs for the authenticated recrui
 ---
 
 ### 7.6 Delete Saved Search
-Remove a saved candidate search query.
-
 - **Method / URL**: `DELETE /api/v1/search/saved/:id`
 - **Auth**: `Bearer <token>`
-
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | MongoDB ObjectId of the saved search |
 
 #### Response `(200 OK)`
 ```json
 {
   "success": true,
   "statusCode": 200,
-  "message": "Saved search deleted successfully"
+  "message": "Saved search deleted successfully",
+  "data": null
 }
 ```
 
@@ -2089,16 +2366,10 @@ Remove a saved candidate search query.
 Inspect full structured parsed resume details for a candidate.
 - **Privacy Enforcement**:
   - `admin`: Full unrestricted access.
-  - `employer`: Allowed if candidate profile is `public` and active, OR if candidate applied to any job posted by the employer's company. Private non-applicant resumes return `404 Not Found`.
-  - `jobseeker`: Only permitted to view their own resumes.
+  - `employer`: Permitted if candidate profile is `public` and active, OR if candidate applied to any job posted by the employer's company. Private non-applicant resumes return `404 Not Found`.
 
 - **Method / URL**: `GET /api/v1/resumes/:id`
 - **Auth**: `Bearer <token>`
-
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | MongoDB ObjectId of the resume |
 
 #### Response `(200 OK)`
 ```json
@@ -2111,34 +2382,26 @@ Inspect full structured parsed resume details for a candidate.
     "user": "66b44a70e7b231123a8b4644",
     "title": "Michael_Chen_Senior_FullStack.pdf",
     "fileUrl": "https://res.cloudinary.com/hire-engine/resumes/michael_chen.pdf",
-    "publicId": "resumes/michael_chen_1789106000",
     "fileType": "pdf",
-    "fileSize": 1048576,
-    "originalFileName": "Michael_Chen_Resume.pdf",
-    "isDefault": false,
     "parsedData": {
       "personalInfo": {
         "name": "Michael Chen",
         "email": "michael.chen@devmail.com",
         "phone": "+14155551234",
         "location": "San Francisco, CA",
-        "linkedin": "https://linkedin.com/in/michaelchen",
-        "github": "https://github.com/michaelchen",
-        "portfolio": "https://michaelchen.dev"
+        "linkedin": "https://linkedin.com/in/michaelchen"
       },
       "headline": "Senior Full Stack Cloud Engineer",
-      "summary": "Full Stack Engineer with 6+ years experience building cloud-native microservices...",
-      "skills": ["React", "TypeScript", "Node.js", "AWS", "Docker", "MongoDB", "GraphQL"],
+      "summary": "Full Stack Engineer with 6+ years experience...",
+      "skills": ["React", "TypeScript", "Node.js", "AWS", "Docker", "MongoDB"],
       "experience": [
         {
           "company": "ScaleTech Systems",
           "title": "Senior Software Engineer",
-          "location": "San Francisco, CA",
           "startDate": "2022-01",
           "endDate": "Present",
           "current": true,
-          "description": "Architected distributed node microservices.",
-          "highlights": ["Processed $50M/year payments", "40% latency reduction"]
+          "description": "Architected distributed microservices."
         }
       ],
       "education": [
@@ -2149,18 +2412,8 @@ Inspect full structured parsed resume details for a candidate.
           "graduationYear": 2020
         }
       ],
-      "certifications": [
-        {
-          "name": "AWS Solutions Architect Associate",
-          "issuer": "Amazon Web Services",
-          "year": 2023
-        }
-      ],
-      "languages": ["English"],
       "totalYearsOfExperience": 6.5
-    },
-    "createdAt": "2026-08-21T10:30:00.000Z",
-    "updatedAt": "2026-08-21T10:30:00.000Z"
+    }
   }
 }
 ```
@@ -2168,15 +2421,10 @@ Inspect full structured parsed resume details for a candidate.
 ---
 
 ### 8.2 AI Resume Analysis & ATS Feedback
-Generate AI-driven quality critique, ATS compatibility score, formatting feedback, and actionable coaching tips for a candidate resume using Google Gemini AI.
+Generate AI-driven quality critique, ATS compatibility score, formatting feedback, and actionable coaching tips using Google Gemini AI.
 
 - **Method / URL**: `GET /api/v1/resumes/:id/analysis`
 - **Auth**: `Bearer <token>`
-
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | MongoDB ObjectId of the resume |
 
 #### Response `(200 OK)`
 ```json
@@ -2197,12 +2445,10 @@ Generate AI-driven quality critique, ATS compatibility score, formatting feedbac
       "Add more quantified revenue, latency, or throughput metrics to microservice projects"
     ],
     "formattingFeedback": [
-      "Clean section hierarchy and readable typography",
-      "Contact information and portfolio links easily identifiable by ATS scanners"
+      "Clean section hierarchy and readable typography"
     ],
     "actionableTips": [
-      "Include measurable impact (e.g., 'reduced API latency by 40%') for leadership roles",
-      "Tailor summary keywords to match the target job description"
+      "Include measurable impact for leadership roles"
     ]
   }
 }
@@ -2216,12 +2462,6 @@ Compare any candidate resume in the database with a specific job posting to comp
 - **Method / URL**: `GET /api/v1/resumes/:id/match/:jobId`
 - **Auth**: `Bearer <token>`
 
-#### URL Parameters
-| Param | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `string` | **Yes** | MongoDB ObjectId of the resume |
-| `jobId` | `string` | **Yes** | MongoDB ObjectId of the target job posting |
-
 #### Response `(200 OK)`
 ```json
 {
@@ -2230,20 +2470,11 @@ Compare any candidate resume in the database with a specific job posting to comp
   "message": "Job match analysis calculated successfully",
   "data": {
     "resumeId": "66b44a80e7b231123a8b4655",
-    "jobId": "66b44a50e7b231123a8b4611",
-    "jobTitle": "Senior Full Stack Engineer (Node.js & React)",
-    "company": "66b44a20e7b231123a8b4588",
+    "jobId": "66b44a50e7b231123a8b4610",
     "matchScore": 92,
     "summary": "Candidate matches 5 of 6 required skills with extensive cloud backend and distributed systems experience.",
     "matchedSkills": ["React", "Node.js", "TypeScript", "Docker", "AWS"],
     "missingSkills": ["Redis"],
-    "strengths": [
-      "Strong domain experience in microservices and distributed systems",
-      "Proven track record with Node.js, TypeScript, and AWS cloud architecture"
-    ],
-    "improvements": [
-      "Lacks documented experience in Redis caching clusters"
-    ],
     "recommendation": "Strong Match"
   }
 }
@@ -2257,7 +2488,7 @@ Compare any candidate resume in the database with a specific job posting to comp
 Customize stages and visual workflow per role or department.
 
 - **Method / URL**: `POST /api/v1/pipelines`
-- **Auth**: `Bearer <token>`
+- **Auth**: `Bearer <token>` (Employer team member)
 
 #### Request Body
 ```json
@@ -2295,6 +2526,11 @@ Customize stages and visual workflow per role or department.
 ---
 
 ### 9.2 List Company Pipelines
+Fetch all custom ATS pipelines for the employer's company.
+
+> [!IMPORTANT]
+> The backend filters pipelines by `companyId`. Always include `?companyId=<companyId>` in the query string.
+
 - **Method / URL**: `GET /api/v1/pipelines?companyId=66b44a20e7b231123a8b4588`
 - **Auth**: `Bearer <token>`
 
@@ -2358,6 +2594,8 @@ Customize stages and visual workflow per role or department.
 ---
 
 ### 9.4 Delete Pipeline
+Default company pipelines cannot be deleted.
+
 - **Method / URL**: `DELETE /api/v1/pipelines/:id`
 - **Auth**: `Bearer <token>`
 
@@ -2375,11 +2613,19 @@ Customize stages and visual workflow per role or department.
 
 ## 10. Subscriptions, Pricing Plans & Invoicing
 
-### 10.1 Get Available Plans & Localized Pricing
-Returns subscription tiers with localized tax calculations (e.g. GST for India, Sales Tax for US).
+### How Subscriptions & Payments Work
+The billing architecture uses a robust **Two-Step Payment Flow** with cryptographic verification:
+1. **Step 1 (Order Creation)**: Recruiter chooses a plan. Calling `POST /api/v1/subscriptions` creates an order via the country-appropriate payment gateway (Razorpay for India, Stripe for US) and records a `pending` transaction in the database.
+2. **Client-Side Checkout**: The frontend opens the Stripe Elements or Razorpay Checkout modal using the returned `orderId` or `clientSecret`.
+3. **Step 2 (Verification & Activation)**: Upon successful checkout, the frontend submits the gateway payment proofs (`razorpay_signature` or `paymentIntentId`) to `POST /api/v1/subscriptions/verify`. The backend cryptographically verifies the signature, activates the subscription, sets up quota tracking, and generates an official B2B tax invoice number.
 
-- **Method / URL**: `GET /api/v1/subscriptions/plans?countryCode=US`
-- **Auth**: None / Public
+---
+
+### 10.1 Get Available Plans & Localized Pricing
+Returns subscription tiers with localized currency and tax calculations (e.g. 18% GST for India, Sales Tax for US).
+
+- **Method / URL**: `GET /api/v1/subscriptions/plans?countryCode=IN`
+- **Auth**: None (Public)
 
 #### Response `(200 OK)`
 ```json
@@ -2388,35 +2634,41 @@ Returns subscription tiers with localized tax calculations (e.g. GST for India, 
   "statusCode": 200,
   "message": "Available subscription plans retrieved",
   "data": {
-    "country": "United States",
-    "currency": "USD",
-    "paymentProvider": "stripe",
+    "country": "India",
+    "currency": "INR",
+    "paymentProvider": "razorpay",
     "plans": {
-      "monthly": {
-        "id": "monthly",
+      "growth": {
+        "id": "growth",
         "name": "Growth Recruiter",
         "description": "Up to 5 active job postings + Resume DB access",
-        "price": 299,
+        "price": 9999,
         "jobQuota": 5,
         "resumeQuota": 500,
         "hasResumeDB": true,
         "durationMonths": 1,
-        "currency": "USD",
-        "tax": [],
-        "totalPrice": 299
+        "currency": "INR",
+        "tax": [
+          { "type": "CGST", "rate": 9, "amount": 899.91 },
+          { "type": "SGST", "rate": 9, "amount": 899.91 }
+        ],
+        "totalPrice": 11798.82
       },
-      "annual": {
-        "id": "annual",
+      "enterprise": {
+        "id": "enterprise",
         "name": "Enterprise Talent Suite",
         "description": "Unlimited job postings, dedicated AI ranking, 5,000 resume downloads",
-        "price": 2999,
+        "price": 89999,
         "jobQuota": 50,
         "resumeQuota": 5000,
         "hasResumeDB": true,
         "durationMonths": 12,
-        "currency": "USD",
-        "tax": [],
-        "totalPrice": 2999
+        "currency": "INR",
+        "tax": [
+          { "type": "CGST", "rate": 9, "amount": 8099.91 },
+          { "type": "SGST", "rate": 9, "amount": 8099.91 }
+        ],
+        "totalPrice": 106198.82
       }
     }
   }
@@ -2425,19 +2677,24 @@ Returns subscription tiers with localized tax calculations (e.g. GST for India, 
 
 ---
 
-### 10.2 Subscribe Company to Plan
-Creates a payment order with Stripe or Razorpay and upgrades the company subscription tier.
+### 10.2 Step 1: Create Subscription Purchase Order
+Creates an order with Stripe or Razorpay and records a `pending` transaction.
 
 - **Method / URL**: `POST /api/v1/subscriptions`
-- **Auth**: `Bearer <token>` (Requires `manage_billing` permission)
+- **Auth**: `Bearer <token>` (Requires `employer` and `manage_billing` permission)
 
 #### Request Body
 ```json
 {
   "companyId": "66b44a20e7b231123a8b4588",
-  "planId": "monthly"
+  "planId": "growth"
 }
 ```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `planId` | `string` | **Yes** | Identifier of the selected plan (`"growth"`, `"enterprise"`, etc.) |
+| `companyId` | `string` | No | Optional if user only belongs to one company |
 
 #### Response `(201 Created)`
 ```json
@@ -2446,21 +2703,24 @@ Creates a payment order with Stripe or Razorpay and upgrades the company subscri
   "statusCode": 201,
   "message": "Subscription order created successfully",
   "data": {
-    "subscription": {
-      "_id": "66b44af0e7b231123a8b4755",
-      "company": "66b44a20e7b231123a8b4588",
-      "plan": "monthly",
-      "status": "active",
-      "paymentProvider": "stripe",
-      "jobPostQuota": 5,
-      "resumeSearchQuota": 500,
-      "hasResumeDBAccess": true,
-      "currentPeriodStart": "2026-08-21T11:30:00.000Z",
-      "currentPeriodEnd": "2026-09-20T11:30:00.000Z"
-    },
     "order": {
-      "orderId": "order_stripe_992381283",
-      "clientSecret": "pi_3Mtwx2_secret_xyz"
+      "orderId": "order_razorpay_992381283",
+      "clientSecret": null,
+      "amount": 11798.82,
+      "currency": "INR"
+    },
+    "transactionId": "66b44b00e7b231123a8b4788",
+    "plan": {
+      "id": "growth",
+      "name": "Growth Recruiter",
+      "basePrice": 9999,
+      "taxAmount": 1799.82,
+      "totalAmount": 11798.82,
+      "currency": "INR",
+      "taxBreakdown": [
+        { "type": "CGST", "rate": 9, "amount": 899.91 },
+        { "type": "SGST", "rate": 9, "amount": 899.91 }
+      ]
     }
   }
 }
@@ -2468,14 +2728,125 @@ Creates a payment order with Stripe or Razorpay and upgrades the company subscri
 
 ---
 
-### 10.3 Cancel Active Subscription
+### 10.3 Step 2: Cryptographic Payment Verification & Activation
+Submit client checkout tokens from Razorpay or Stripe to cryptographically verify payment authenticity, activate subscription quotas, and finalize the invoice.
+
+- **Method / URL**: `POST /api/v1/subscriptions/verify`
+- **Auth**: `Bearer <token>`
+
+#### Request Body (Razorpay Example)
+```json
+{
+  "companyId": "66b44a20e7b231123a8b4588",
+  "paymentProvider": "razorpay",
+  "razorpay_order_id": "order_razorpay_992381283",
+  "razorpay_payment_id": "pay_9876543210",
+  "razorpay_signature": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+```
+
+#### Request Body (Stripe Example)
+```json
+{
+  "companyId": "66b44a20e7b231123a8b4588",
+  "paymentProvider": "stripe",
+  "paymentIntentId": "pi_3Mtwx2_secret_xyz"
+}
+```
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Payment verified and subscription activated successfully",
+  "data": {
+    "subscription": {
+      "_id": "66b44af0e7b231123a8b4755",
+      "company": "66b44a20e7b231123a8b4588",
+      "plan": "growth",
+      "status": "active",
+      "jobPostQuota": 5,
+      "jobPostsUsed": 0,
+      "resumeSearchQuota": 500,
+      "resumeSearchesUsed": 0,
+      "hasResumeDBAccess": true,
+      "currentPeriodStart": "2026-09-12T11:30:00.000Z",
+      "currentPeriodEnd": "2026-10-12T11:30:00.000Z"
+    },
+    "transaction": {
+      "_id": "66b44b00e7b231123a8b4788",
+      "invoiceNumber": "INV-202609-0001",
+      "status": "succeeded",
+      "amount": 11798.82,
+      "currency": "INR",
+      "externalPaymentId": "pay_9876543210"
+    }
+  }
+}
+```
+
+---
+
+### 10.4 Get Current Subscription & Quota Progress
+Fetches the company's active subscription status, remaining validity in days, and real-time quota progress for job postings and candidate resume searches.
+
+- **Method / URL**: `GET /api/v1/subscriptions/current?companyId=66b44a20e7b231123a8b4588`
+- **Auth**: `Bearer <token>`
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Current subscription retrieved successfully",
+  "data": {
+    "active": true,
+    "status": "active",
+    "daysRemaining": 30,
+    "subscription": {
+      "_id": "66b44af0e7b231123a8b4755",
+      "plan": "growth",
+      "status": "active",
+      "currentPeriodEnd": "2026-10-12T11:30:00.000Z"
+    },
+    "plan": {
+      "name": "Growth Recruiter",
+      "jobQuota": 5,
+      "resumeQuota": 500
+    },
+    "quotas": {
+      "jobs": {
+        "total": 5,
+        "used": 1,
+        "remaining": 4,
+        "percentageUsed": 20
+      },
+      "resumes": {
+        "total": 500,
+        "used": 42,
+        "remaining": 458,
+        "percentageUsed": 8
+      },
+      "hasResumeDBAccess": true
+    }
+  }
+}
+```
+
+---
+
+### 10.5 Cancel Active Subscription
+Cancels recurring renewal. Quotas remain accessible until `currentPeriodEnd`.
+
 - **Method / URL**: `DELETE /api/v1/subscriptions`
 - **Auth**: `Bearer <token>`
 
 #### Request Body
 ```json
 {
-  "companyId": "66b44a20e7b231123a8b4588"
+  "companyId": "66b44a20e7b231123a8b4588",
+  "reason": "Team hiring freeze for next quarter"
 }
 ```
 
@@ -2488,16 +2859,28 @@ Creates a payment order with Stripe or Razorpay and upgrades the company subscri
   "data": {
     "_id": "66b44af0e7b231123a8b4755",
     "status": "cancelled",
-    "cancelledAt": "2026-08-21T11:35:00.000Z"
+    "cancelledAt": "2026-09-12T11:35:00.000Z",
+    "cancelReason": "Team hiring freeze for next quarter"
   }
 }
 ```
 
 ---
 
-### 10.4 Company Billing History & Invoices
-- **Method / URL**: `GET /api/v1/subscriptions/transactions?companyId=66b44a20e7b231123a8b4588`
+### 10.6 Company Billing History & Transactions
+- **Method / URL**: `GET /api/v1/subscriptions/transactions?companyId=66b44a20e7b231123a8b4588&page=1&limit=20`
 - **Auth**: `Bearer <token>`
+
+#### Query Parameters
+| Param | Type | Description |
+| :--- | :--- | :--- |
+| `companyId` | `string` | Optional company ID |
+| `status` | `string` | `pending`, `succeeded`, `failed`, `refunded` |
+| `type` | `string` | `subscription`, `job_boost`, `refund` |
+| `startDate` | `string` | ISO start date |
+| `endDate` | `string` | ISO end date |
+| `page` | `number` | Page number |
+| `limit` | `number` | Limit per page |
 
 #### Response `(200 OK)`
 ```json
@@ -2508,18 +2891,95 @@ Creates a payment order with Stripe or Razorpay and upgrades the company subscri
   "data": [
     {
       "_id": "66b44b00e7b231123a8b4788",
+      "invoiceNumber": "INV-202609-0001",
       "type": "subscription",
-      "amount": 299,
-      "currency": "USD",
+      "amount": 11798.82,
+      "currency": "INR",
       "status": "succeeded",
-      "paymentProvider": "stripe",
-      "externalPaymentId": "ch_3Mtww82eZvKYlo2C",
-      "description": "Subscribed to Growth Recruiter",
-      "createdAt": "2026-08-21T11:30:00.000Z"
+      "paymentProvider": "razorpay",
+      "externalPaymentId": "pay_9876543210",
+      "description": "Subscription Order: Growth Recruiter",
+      "taxAmount": 1799.82,
+      "createdAt": "2026-09-12T11:30:00.000Z"
     }
-  ]
+  ],
+  "meta": {
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 1,
+      "totalDocs": 1,
+      "limit": 20,
+      "hasNextPage": false,
+      "hasPrevPage": false
+    }
+  }
 }
 ```
+
+---
+
+### 10.7 Download B2B Tax Invoice
+Retrieves structured B2B tax invoice breakdown including official seller details (GSTIN/CIN/EIN), buyer billing details, SAC codes, and line items.
+
+- **Method / URL**: `GET /api/v1/subscriptions/transactions/:id/invoice`
+- **Auth**: `Bearer <token>`
+
+#### Response `(200 OK)`
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Transaction tax invoice retrieved successfully",
+  "data": {
+    "invoiceNumber": "INV-202609-0001",
+    "date": "2026-09-12T11:30:00.000Z",
+    "status": "succeeded",
+    "currency": "INR",
+    "paymentProvider": "razorpay",
+    "externalPaymentId": "pay_9876543210",
+    "seller": {
+      "legalEntity": "Hire Engine India Private Limited",
+      "address": "Wirpo Circle, Hinjewadi, Pune, Maharashtra 411057, India",
+      "state": "MH",
+      "gstin": "06AAACH7409R1ZZ",
+      "pan": "AAACH7409R",
+      "sacCode": "998311"
+    },
+    "buyer": {
+      "companyName": "CloudScale India Pvt Ltd",
+      "address": "Outer Ring Road, Bellandur, Bengaluru, Karnataka, 560103",
+      "state": "Karnataka",
+      "gstin": "29AAAAA0000A1Z5",
+      "pan": "AAAAA0000A"
+    },
+    "lineItems": [
+      {
+        "description": "Growth Recruiter - 1 Month Subscription",
+        "sacCode": "998311",
+        "baseAmount": 9999,
+        "taxAmount": 1799.82,
+        "totalAmount": 11798.82
+      }
+    ],
+    "subtotal": 9999,
+    "taxTotal": 1799.82,
+    "grandTotal": 11798.82,
+    "taxBreakdown": [
+      { "type": "CGST", "rate": 9, "amount": 899.91 },
+      { "type": "SGST", "rate": 9, "amount": 899.91 }
+    ]
+  }
+}
+```
+
+---
+
+### 10.8 Payment Webhook Integration
+Endpoint for asynchronous webhook handling from payment gateways.
+
+- **Method / URL**: `POST /api/v1/subscriptions/webhooks/:provider`
+- **Provider Parameter**: `stripe` or `razorpay`
+- **Auth**: Cryptographic signature verified from header (`stripe-signature` or `x-razorpay-signature`)
 
 ---
 
@@ -2587,8 +3047,8 @@ View impressions, clicks, conversion rates, and budget spend for a specific job 
       "totalBudget": 250,
       "spent": 50,
       "currency": "USD",
-      "startDate": "2026-08-21T10:30:00.000Z",
-      "endDate": "2026-08-31T10:30:00.000Z"
+      "startDate": "2026-09-12T10:30:00.000Z",
+      "endDate": "2026-09-22T10:30:00.000Z"
     }
   }
 }
@@ -2622,9 +3082,7 @@ Breakdown of applicant locations and candidate top skills for a job posting.
       "TypeScript": 30,
       "Docker": 24,
       "AWS": 22,
-      "MongoDB": 19,
-      "GraphQL": 16,
-      "Redis": 12
+      "MongoDB": 19
     }
   }
 }
@@ -2655,7 +3113,7 @@ Breakdown of applicant locations and candidate top skills for a job posting.
       "relatedId": "66b44a60e7b231123a8b4633",
       "actionUrl": "/employer/applications/66b44a60e7b231123a8b4633",
       "isRead": false,
-      "createdAt": "2026-08-21T09:15:00.000Z"
+      "createdAt": "2026-09-12T09:15:00.000Z"
     }
   ],
   "meta": {
@@ -2714,7 +3172,7 @@ Breakdown of applicant locations and candidate top skills for a job posting.
 Returns active country plugins, currency, locale, and payment provider configs.
 
 - **Method / URL**: `GET /api/v1/countries`
-- **Auth**: None / Public
+- **Auth**: None (Public)
 
 #### Response `(200 OK)`
 ```json
@@ -2743,13 +3201,13 @@ Returns active country plugins, currency, locale, and payment provider configs.
 
 ### 13.2 API Health Check
 - **Method / URL**: `GET /api/v1/health`
-- **Auth**: None / Public
+- **Auth**: None (Public)
 
 #### Response `(200 OK)`
 ```json
 {
   "status": "UP",
-  "timestamp": "2026-08-21T10:00:00.000Z",
+  "timestamp": "2026-09-12T10:00:00.000Z",
   "uptime": 86400
 }
 ```
@@ -2845,18 +3303,38 @@ export enum ScreeningQuestionType {
   NUMERIC = 'numeric',
 }
 
+export enum PaymentProvider {
+  STRIPE = 'stripe',
+  RAZORPAY = 'razorpay',
+}
+
 // ── Recruiter & Company Models ───────────────────────────────────
+export interface CompanySummary {
+  _id: string;
+  name: string;
+  slug?: string;
+  logoUrl?: string;
+  countryCode: string;
+  verificationStatus: 'pending' | 'under_review' | 'information_required' | 'approved' | 'rejected';
+  isVerified: boolean;
+  isOwner: boolean;
+  permissions: TeamPermission[];
+}
+
 export interface User {
   _id: string;
   firstName: string;
   lastName: string;
   email: string;
   role: UserRole;
-  mobile?: string;
+  phone?: string;
   avatar?: string;
   headline?: string;
+  summary?: string;
   countryCode?: string;
+  profileVisibility?: 'public' | 'private' | 'anonymous';
   isEmailVerified: boolean;
+  company?: CompanySummary | string;
   createdAt: string;
 }
 
@@ -2871,7 +3349,7 @@ export interface Company {
   _id: string;
   name: string;
   owner: string;
-  phone?: string;
+  phone: string;
   contactName?: string;
   isPhoneVerified: boolean;
   verifiedPhone: boolean;
@@ -2902,6 +3380,17 @@ export interface Company {
   createdAt: string;
 }
 
+export interface CompanyInvitation {
+  _id: string;
+  company: string | { _id: string; name: string; logoUrl?: string };
+  email: string;
+  permissions: TeamPermission[];
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  token: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 // ── Job Postings ─────────────────────────────────────────────────
 export interface ScreeningQuestion {
   question: string;
@@ -2922,7 +3411,7 @@ export interface SalaryRange {
 export interface Job {
   _id: string;
   company: Company | string;
-  creator: User | string;
+  postedBy: User | string;
   title: string;
   description: string;
   responsibilities?: string;
@@ -2975,16 +3464,22 @@ export interface Application {
     title: string;
     fileUrl: string;
     fileType: string;
+    parsedData?: any;
   };
   coverLetter?: string;
   status: ApplicationStatus;
   pipelineStage: string;
-  rating?: number;
+  rating?: number | null;
   isEasyApply: boolean;
   screeningAnswers: Array<{
     questionIndex: number;
     question: string;
     answer: string;
+  }>;
+  statusHistory?: Array<{
+    status: ApplicationStatus;
+    changedAt: string;
+    note?: string;
   }>;
   appliedAt: string;
 }
@@ -3038,106 +3533,112 @@ export interface CandidateNote {
   updatedAt: string;
 }
 
-export interface CreateNotePayload {
-  content: string;
-  rating?: number | null;
-  isPrivate?: boolean;
-}
-
-export interface UpdateNotePayload {
-  content?: string;
-  rating?: number | null;
-  isPrivate?: boolean;
-}
-
-export interface RateCandidatePayload {
-  rating: number; // 1-5
-}
-
-export interface BulkEmailPayload {
-  applicationIds: string[];
-  subject: string;
-  body: string;
-}
-
-// ── Company Compliance & Documents ───────────────────────────────
-export interface CompanyDocument {
+// ── Subscriptions & Invoicing ─────────────────────────────────────
+export interface TaxBreakdown {
   type: string;
-  label: string;
-  fileUrl: string;
-  publicId: string;
-  uploadedAt: string;
+  rate: number;
+  amount: number;
 }
 
-export interface VerificationChecklistItem {
-  type: string;
-  label: string;
+export interface SubscriptionPlanItem {
+  id: string;
+  name: string;
   description: string;
-  required: boolean;
-  isUploaded: boolean;
-  uploadedDocument: CompanyDocument | null;
+  price: number;
+  jobQuota: number;
+  resumeQuota: number;
+  hasResumeDB: boolean;
+  durationMonths: number;
+  currency: string;
+  tax: TaxBreakdown[];
+  totalPrice: number;
 }
 
-export interface CompanyVerificationChecklist {
-  companyId: string;
-  countryCode: string;
-  countryName: string;
-  verificationStatus: 'pending' | 'under_review' | 'information_required' | 'approved' | 'rejected';
-  isComplete: boolean;
-  checklist: VerificationChecklistItem[];
-  documents: CompanyDocument[];
-}
-
-// ── Analytics & Dashboards ───────────────────────────────────────
-export interface JobAnalytics {
-  jobId: string;
-  title: string;
-  views: number;
-  clicks: number;
-  applications: number;
-  conversionRate: string;
-  clickThroughRate: string;
-  isSponsored: boolean;
-  sponsorBudget?: {
-    dailyBudget: number;
-    totalBudget: number;
-    spent: number;
+export interface SubscriptionOrderResponse {
+  order: {
+    orderId: string;
+    clientSecret?: string | null;
+    amount: number;
     currency: string;
-    startDate: string;
-    endDate: string;
+  };
+  transactionId: string;
+  plan: {
+    id: string;
+    name: string;
+    basePrice: number;
+    taxAmount: number;
+    totalAmount: number;
+    currency: string;
+    taxBreakdown: TaxBreakdown[];
   };
 }
 
-export interface ApplicantDemographics {
-  totalApplicants: number;
-  locationBreakdown: Record<string, number>;
-  topSkills: Record<string, number>;
-}
-
-export interface CompanyOverviewMetrics {
-  companyId: string;
-  name: string;
-  totalApplications: number;
-  jobStats: Array<{
+export interface CurrentSubscriptionResponse {
+  active: boolean;
+  status: string;
+  daysRemaining: number;
+  subscription: {
     _id: string;
-    count: number;
-    totalViews: number;
-    totalClicks: number;
-  }>;
+    plan: string;
+    status: string;
+    currentPeriodEnd: string;
+  } | null;
+  plan: {
+    name: string;
+    jobQuota: number;
+    resumeQuota: number;
+  } | null;
+  quotas: {
+    jobs: {
+      total: number | 'unlimited';
+      used: number;
+      remaining: number | 'unlimited';
+      percentageUsed: number;
+    };
+    resumes: {
+      total: number | 'unlimited';
+      used: number;
+      remaining: number | 'unlimited';
+      percentageUsed: number;
+    };
+    hasResumeDBAccess: boolean;
+  };
 }
 
-// ── Notifications ────────────────────────────────────────────────
-export interface RecruiterNotification {
-  _id: string;
-  user: string;
-  type: string;
-  title: string;
-  message: string;
-  relatedModel?: string;
-  relatedId?: string;
-  actionUrl?: string;
-  isRead: boolean;
-  createdAt: string;
+export interface B2BInvoice {
+  invoiceNumber: string;
+  date: string;
+  status: string;
+  currency: string;
+  paymentProvider: string;
+  externalPaymentId: string;
+  seller: {
+    legalEntity: string;
+    address: string;
+    state: string;
+    gstin?: string;
+    pan?: string;
+    ein?: string;
+    sacCode?: string;
+  };
+  buyer: {
+    companyName: string;
+    address: string;
+    state?: string;
+    gstin?: string;
+    pan?: string;
+  };
+  lineItems: Array<{
+    description: string;
+    sacCode?: string;
+    baseAmount: number;
+    taxAmount: number;
+    totalAmount: number;
+  }>;
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  taxBreakdown: TaxBreakdown[];
 }
 ```
 
@@ -3145,7 +3646,7 @@ export interface RecruiterNotification {
 
 ## 15. Frontend Integration Best Practices (Axios Client Setup)
 
-Here is a production-ready Axios client with automated **JWT Bearer attachment**, **automatic 401 token refresh retry**, and **country header handling**:
+Here is a production-ready Axios client with automated **JWT Bearer attachment**, **automatic 401 token refresh retry queue**, and **country header handling**:
 
 ```typescript
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
@@ -3159,7 +3660,7 @@ export const apiClient = axios.create({
   },
 });
 
-// 1. Request Interceptor: Attach Access Token & Country Header
+// 1. Request Interceptor: Attach Access Token & Country Context Header
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('accessToken');
   if (token && config.headers) {
@@ -3248,98 +3749,131 @@ apiClient.interceptors.response.use(
 );
 ```
 
-### Practical Usage Examples with Axios
+### Complete Feature Integration Snippets
 
 ```typescript
 import { apiClient } from './apiClient';
 
-// ── 1. Company Compliance & Phone Verification ───────
+// ── 1. Company Registration & Compliance Verification ───────
+
+// Check domain match during registration
+const { data: domainCheck } = await apiClient.get('/companies/lookup/domain', {
+  params: { domain: 'techcorp.io' },
+});
+
+// Register new company
+const { data: companyRes } = await apiClient.post('/companies', {
+  name: 'CloudScale Technologies Inc.',
+  countryCode: 'US',
+  phone: '+14155550199',
+  website: 'https://techcorp.io',
+  industry: 'Software',
+  size: '51-200',
+  registrationDetails: {
+    einNumber: '12-3456789',
+  },
+});
+
+const companyId = companyRes.data._id;
 
 // Send OTP to company phone
 await apiClient.post('/companies/phone/send-otp', {
-  phone: '+919876543210',
+  phone: '+14155550199',
 });
 
-// Verify OTP on registered company
+// Verify phone OTP
 await apiClient.post(`/companies/${companyId}/phone/verify-otp`, {
-  phone: '+919876543210',
+  phone: '+14155550199',
   otp: '492810',
 });
 
-// Fetch verification document checklist
-const { data: checklistData } = await apiClient.get(`/companies/${companyId}/documents`);
-
-// Upload a compliance document (multipart/form-data)
+// Upload verification document
 const formData = new FormData();
-formData.append('type', 'gst_certificate');
-formData.append('label', 'GST Registration Certificate');
-formData.append('document', fileBlob, 'gst_certificate.pdf');
+formData.append('type', 'ein_letter');
+formData.append('label', 'IRS EIN Confirmation Letter');
+formData.append('document', fileBlob, 'ein_letter.pdf');
 
 await apiClient.post(`/companies/${companyId}/documents`, formData, {
   headers: { 'Content-Type': 'multipart/form-data' },
 });
 
-// ── 2. Candidate Notes & Star Ratings ────────────────
+// ── 2. Subscriptions & Billing Flow ─────────────────────────
 
-// Add note with star rating
-const { data: newNote } = await apiClient.post(`/applications/${applicationId}/notes`, {
-  content: 'Strong cultural fit and system design knowledge.',
-  rating: 5,
-  isPrivate: false,
+// Fetch localized pricing plans
+const { data: plansRes } = await apiClient.get('/subscriptions/plans', {
+  params: { countryCode: 'US' },
 });
 
-// List all notes for candidate (private notes filtered automatically by server)
-const { data: notes } = await apiClient.get(`/applications/${applicationId}/notes`);
-
-// Update note
-await apiClient.put(`/applications/${applicationId}/notes/${noteId}`, {
-  content: 'Updated: Excellent technical interview, strong hire.',
-  rating: 5,
-  isPrivate: true,
+// Step 1: Create purchase order
+const { data: orderRes } = await apiClient.post('/subscriptions', {
+  companyId,
+  planId: 'growth',
 });
 
-// Delete note
-await apiClient.delete(`/applications/${applicationId}/notes/${noteId}`);
-
-// Rate candidate directly
-await apiClient.post(`/applications/${applicationId}/rate`, {
-  rating: 4,
+// Step 2: After Stripe Elements / Razorpay Checkout succeeds, verify & activate:
+const { data: activationRes } = await apiClient.post('/subscriptions/verify', {
+  companyId,
+  paymentProvider: 'stripe',
+  paymentIntentId: 'pi_3Mtwx2_secret_xyz',
 });
 
-// Clear candidate rating
-await apiClient.delete(`/applications/${applicationId}/rate`);
+// Fetch active subscription & real-time quota progress
+const { data: subStatus } = await apiClient.get('/subscriptions/current', {
+  params: { companyId },
+});
 
-// ── 3. Recruitment Analytics & ROI ───────────────────
+// ── 3. Jobs & ATS Application Flow ──────────────────────────
 
-// Company-wide dashboard
-const { data: companyOverview } = await apiClient.get('/analytics/company/overview');
+// Create job posting (Requires active subscription)
+const { data: newJob } = await apiClient.post('/jobs', {
+  companyId,
+  title: 'Senior Full Stack Engineer',
+  description: 'Full stack development with React, Node.js and TypeScript...',
+  skills: ['React', 'Node.js', 'TypeScript'],
+  employmentType: 'full-time',
+  workplaceType: 'hybrid',
+  location: {
+    city: 'San Francisco',
+    country: 'United States',
+  },
+  publishNow: false, // Save as draft first
+});
 
-// Job-specific funnel & conversion rates
-const { data: jobStats } = await apiClient.get(`/analytics/jobs/${jobId}`);
+// Publish job (when company verification is approved)
+await apiClient.patch(`/jobs/${newJob.data._id}/status`, {
+  status: 'active',
+});
 
-// Applicant demographics and top skills
-const { data: demographics } = await apiClient.get(`/analytics/jobs/${jobId}/demographics`);
-
-// ── 4. Notifications ─────────────────────────────────
-
-// List unread notifications
-const { data: notifications } = await apiClient.get('/notifications', {
+// Fetch applications for job
+const { data: applications } = await apiClient.get(`/applications/jobs/${newJob.data._id}/applications`, {
   params: { page: 1, limit: 20 },
 });
 
-// Mark all as read
-await apiClient.patch('/notifications/read-all');
+// Inspect single application with ATS notes
+const { data: appDetails } = await apiClient.get(`/applications/${applicationId}`);
+
+// Move applicant to interview stage with note
+await apiClient.patch(`/applications/${applicationId}/status`, {
+  status: 'interview',
+  pipelineStage: 'Technical Interview',
+  note: 'Candidate scored 92% on AI fit analysis. Scheduled for interview.',
+});
+
+// Add internal rating
+await apiClient.post(`/applications/${applicationId}/rate`, {
+  rating: 5,
+});
 ```
 
 ---
 
 ## 🎯 Summary Checklist for Frontend Developers
 
-When implementing the Recruiter/Employer portal:
-- ✅ **Auth Flow**: Register (`role: 'employer'`), Login, Store `accessToken` and `refreshToken`.
-- ✅ **Company Flow**: Verify if user has a company (`GET /api/v1/users/me`). If not, route to Onboarding (`POST /api/v1/companies`).
-- ✅ **Jobs Flow**: Manage job statuses (`draft` -> `active` -> `paused` -> `closed`).
-- ✅ **ATS Flow**: Load applications by job (`GET /api/v1/applications/jobs/:jobId/applications`), view AI scorecard (`/api/v1/applications/:id/fit`), change stages with notes.
-- ✅ **Talent Search**: Use Boolean & hybrid search (`GET /api/v1/search/resumes`), check similar profiles, rank candidate database against job descriptions.
-- ✅ **Billing Flow**: Load localized plans (`GET /api/v1/subscriptions/plans`), initiate payment order with Stripe/Razorpay.
-- ✅ **Analytics**: Render charts for views, clicks, applications, conversion rates, and demographic breakdowns.
+When implementing the Recruiter & Employer portal:
+- ✅ **Auth Flow**: Register with corporate email (`role: 'employer'`), login, store `accessToken` and `refreshToken`.
+- ✅ **Onboarding Flow**: Check `user.company`. If null, check `GET /companies/lookup/domain`. Route to company creation (`POST /companies`) with mandatory `countryCode` and `phone`.
+- ✅ **Phone & Doc Compliance**: Call `POST /companies/phone/send-otp` (with Bearer token) and verify with `/phone/verify-otp`. Upload compliance documents (`/documents`).
+- ✅ **Billing Flow**: Load localized plans (`GET /subscriptions/plans`), call Step 1 (`POST /subscriptions`) to get order/clientSecret, complete gateway modal, then call Step 2 (`POST /subscriptions/verify`) to activate quotas.
+- ✅ **Jobs Flow**: Ensure company has an active subscription before posting jobs (`POST /jobs`). Draft jobs anytime; publish (`PATCH /jobs/:id/status` with `status: 'active'`) once company profile is approved.
+- ✅ **ATS Flow**: View job applicants (`GET /applications/jobs/:jobId/applications`), view detailed application (`GET /applications/:id`), generate AI fit scorecard (`/fit`), advance hiring stages with internal notes.
+- ✅ **Talent Search**: Sourcing candidates via Boolean and hybrid semantic search (`GET /search/resumes`), AI similarity matching, and candidate alerts.

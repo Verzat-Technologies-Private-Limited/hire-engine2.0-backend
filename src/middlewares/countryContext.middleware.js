@@ -21,11 +21,13 @@ const resolveCountryContext = (options = {}) => {
   return (req, _res, next) => {
     let countryCode = null;
 
-    // Priority 1: Explicit in request body or query
+    // Priority 1: Explicit in request body, query, or X-Country-Code header
     if (req.body?.countryCode) {
       countryCode = req.body.countryCode.toUpperCase();
     } else if (req.query?.countryCode) {
       countryCode = req.query.countryCode.toUpperCase();
+    } else if (req.headers && req.headers['x-country-code']) {
+      countryCode = String(req.headers['x-country-code']).toUpperCase();
     }
 
     // Priority 2: From company context (set by a previous middleware)
